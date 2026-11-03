@@ -74,8 +74,8 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
 
     fun setAccent(i: Int) { accentIndex = i; prefs.edit().putInt("accent", i).apply() }
     fun setLabels(v: Boolean) { showLabels = v; prefs.edit().putBoolean("labels", v).apply() }
-    fun setIconScale(v: Float) { iconScale = v; prefs.edit().putFloat("icon_scale", v).apply() }
-    fun setColumns(v: Int) {
+    fun changeIconScale(v: Float) { iconScale = v; prefs.edit().putFloat("icon_scale", v).apply() }
+    fun changeColumns(v: Int) {
         columns = v
         prefs.edit().putInt("columns", v).apply()
         reflow()

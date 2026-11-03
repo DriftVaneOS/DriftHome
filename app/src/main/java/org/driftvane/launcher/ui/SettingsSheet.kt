@@ -53,11 +53,11 @@ fun SettingsSheet(model: LauncherModel, onDismiss: () -> Unit) {
             Spacer(Modifier.height(20.dp))
 
             Label("Icon size")
-            Segmented(listOf("Small" to 0.88f, "Medium" to 1f, "Large" to 1.14f), model.iconScale, model.accent) { model.setIconScale(it) }
+            Segmented(listOf("Small" to 0.88f, "Medium" to 1f, "Large" to 1.14f), model.iconScale, model.accent) { model.changeIconScale(it) }
             Spacer(Modifier.height(20.dp))
 
             Label("Columns")
-            Segmented(listOf("4" to 4, "5" to 5), model.columns, model.accent) { model.setColumns(it) }
+            Segmented(listOf("4" to 4, "5" to 5), model.columns, model.accent) { model.changeColumns(it) }
             Spacer(Modifier.height(20.dp))
 
             Row(verticalAlignment = Alignment.CenterVertically) {
