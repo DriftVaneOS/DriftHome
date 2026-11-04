@@ -44,9 +44,6 @@ class HomeActivity : ComponentActivity(), HomeActions {
     private val bindLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) configureOrAdd(pendingWidget) else cancelPending()
     }
-    private val configureLauncher = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { r ->
-        if (r.resultCode == RESULT_OK) addPending() else cancelPending()
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge(
@@ -61,6 +58,15 @@ class HomeActivity : ComponentActivity(), HomeActions {
         model.start()
         setContent {
             HomeScreen(model, homePresses, resumes, this) { item, modifier -> WidgetView(item, modifier) }
+        }
+    }
+
+    @Deprecated("Widget configure screens report back here")
+    @Suppress("DEPRECATION")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_CONFIGURE) {
+            if (resultCode == RESULT_OK) addPending() else cancelPending()
         }
     }
 
@@ -152,8 +158,7 @@ class HomeActivity : ComponentActivity(), HomeActions {
         val info = widgetManager.getAppWidgetInfo(id) ?: pendingInfo
         if (info?.configure != null) {
             runCatching {
-                val sender = widgetHost.getIntentSenderForConfigureActivity(id, 0)
-                configureLauncher.launch(androidx.activity.result.IntentSenderRequest.Builder(sender).build())
+                widgetHost.startAppWidgetConfigureActivityForResult(this, id, 0, REQUEST_CONFIGURE, null)
             }.onFailure { addPending() }
         } else {
             addPending()
@@ -202,5 +207,6 @@ class HomeActivity : ComponentActivity(), HomeActions {
 
     companion object {
         private const val HOST_ID = 2026
+        private const val REQUEST_CONFIGURE = 41
     }
 }
