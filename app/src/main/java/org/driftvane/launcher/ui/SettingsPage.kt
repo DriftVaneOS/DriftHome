@@ -1,6 +1,5 @@
 package org.driftvane.launcher.ui
 
-import android.app.role.RoleManager
 import android.content.Intent
 import android.provider.Settings
 import androidx.activity.compose.LocalActivity
@@ -107,12 +106,6 @@ fun SettingsPage(model: LauncherModel, onClose: () -> Unit) {
             }
             item {
                 Card("System") {
-                    Action("Make DriftHome the default home", accent) {
-                        val rm = activity?.getSystemService(RoleManager::class.java)
-                        if (rm != null && !rm.isRoleHeld(RoleManager.ROLE_HOME)) {
-                            activity?.startActivity(rm.createRequestRoleIntent(RoleManager.ROLE_HOME))
-                        }
-                    }
                     Action("Wallpaper & style", Color(0x33FFFFFF)) {
                         runCatching { activity?.startActivity(Intent(Intent.ACTION_SET_WALLPAPER)) }
                     }

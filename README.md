@@ -17,7 +17,7 @@ The DriftVaneOS launcher. Pages of apps, a floating glass dock, folders, widgets
   - **Swipe up drawer:** no library page; swipe up anywhere for all apps.
 - **Swipe down:** search (default), the notification shade, or nothing.
 - **Home settings** (long-press empty space, or ⚙ in the library): columns, icon size, labels, clock card, page dots,
-  dock, library style, gestures, accent color, glass strength, default home and reset.
+  dock, library style, gestures, accent color, glass strength and reset.
 
 ## Build
 

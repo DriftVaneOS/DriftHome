@@ -256,11 +256,15 @@ fun CategorySheet(model: LauncherModel, title: String, handler: ItemHandler) {
 
 /** Swipe-up app drawer (when the library style is "Swipe up"). */
 @Composable
-fun AppDrawer(model: LauncherModel, handler: ItemHandler, onSearch: () -> Unit) {
+fun AppDrawer(model: LauncherModel, handler: ItemHandler, onClose: () -> Unit, onSearch: () -> Unit) {
     val all = remember(model.apps.size) { model.apps.values.sortedBy { it.label.lowercase() } }
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         item {
-            Box(Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
+            // grab handle: tap it to close (or pull the list down)
+            Box(
+                Modifier.fillMaxWidth().clickable { onClose() }.padding(vertical = 14.dp),
+                contentAlignment = Alignment.Center,
+            ) {
                 Box(Modifier.width(44.dp).height(5.dp).background(Color(0x66FFFFFF), RoundedCornerShape(50)))
             }
             Box(

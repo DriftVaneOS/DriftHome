@@ -2,6 +2,12 @@ package org.driftvane.launcher.ui
 
 import android.appwidget.AppWidgetProviderInfo
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.animate
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateDpAsState
@@ -110,6 +116,42 @@ fun HomeScreen(
     var openCategory by remember { mutableStateOf<String?>(null) }
     var drawerOpen by remember { mutableStateOf(false) }
 
+    // Swipe-up drawer: pulling down at the top of the list drags the drawer down; let go to close.
+    var drawerPull by remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(drawerOpen) { if (drawerOpen) drawerPull = 0f }
+    val drawerScroll = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                // dragging back up while pulled down: shrink the pull first
+                if (available.y < 0 && drawerPull > 0f) {
+                    val new = (drawerPull + available.y).coerceAtLeast(0f)
+                    val used = new - drawerPull
+                    drawerPull = new
+                    return Offset(0f, used)
+                }
+                return Offset.Zero
+            }
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                // list is already at the top and you keep pulling down
+                if (available.y > 0 && source == NestedScrollSource.UserInput) {
+                    drawerPull += available.y
+                    return Offset(0f, available.y)
+                }
+                return Offset.Zero
+            }
+            override suspend fun onPreFling(available: Velocity): Velocity {
+                if (drawerPull <= 0f) return Velocity.Zero
+                val close = drawerPull > with(density) { 140.dp.toPx() } || available.y > 1800f
+                if (close) {
+                    drawerOpen = false
+                } else {
+                    animate(drawerPull, 0f, animationSpec = spring(dampingRatio = 0.8f, stiffness = 420f)) { v, _ -> drawerPull = v }
+                }
+                return available
+            }
+        }
+    }
+
     fun closeAll() {
         searchOpen = false; menuKey = null; homeMenu = false; settingsOpen = false
         widgetPicker = false; openFolder = null; openCategory = null; drawerOpen = false; editMode = false
@@ -175,13 +217,15 @@ fun HomeScreen(
                 val k = drag.key
                 val src = drag.source
                 val h = drag.hover
-                drag.end()
+                // Apply the move while the preview still shows it, then end the drag, so the
+                // layout never flashes back to the old order.
                 if (k != null && src != null) when (h) {
                     is Hover.Dock -> model.moveToDock(k, src, h.index)
                     is Hover.Insert -> model.moveToPage(k, src, h.page, h.index)
                     is Hover.Onto -> model.dropOnto(k, src, h.page, h.target)
                     Hover.None -> Unit
                 }
+                drag.end()
                 model.tidy()
                 if (src is Source.InFolder) openFolder = null
                 if (src is Source.Library) drawerOpen = false
@@ -289,7 +333,7 @@ fun HomeScreen(
                                     )
                                 }
                             )
-                            Column(Modifier.fillMaxSize().statusBarsPadding().padding(top = if (editMode) 56.dp else 8.dp)) {
+                            Column(Modifier.fillMaxSize().statusBarsPadding().padding(top = 8.dp)) {
                                 HomePage(model, page, editMode, drag, handler, widget)
                             }
                         }
@@ -302,28 +346,29 @@ fun HomeScreen(
                         }
                     }
                 }
-                if (model.showDots) {
-                    PageDots(pageCount, pager.currentPage, model.accent)
-                    Spacer(Modifier.height(10.dp))
+                Box(Modifier.fillMaxWidth().height(44.dp), contentAlignment = Alignment.Center) {
+                    androidx.compose.animation.AnimatedVisibility(
+                        model.showDots && !editMode, enter = fadeIn(), exit = fadeOut(),
+                    ) { PageDots(pageCount, pager.currentPage, model.accent) }
+                    androidx.compose.animation.AnimatedVisibility(
+                        editMode,
+                        enter = fadeIn() + scaleIn(initialScale = 0.85f),
+                        exit = fadeOut() + scaleOut(targetScale = 0.85f),
+                    ) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 18.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Pill("+ Widget", Color(0x99262330)) { widgetPicker = true }
+                            Pill("Done", model.accent) { editMode = false }
+                        }
+                    }
                 }
                 if (model.showDock) Dock(model, editMode, drag, handler)
                 else Spacer(Modifier.navigationBarsPadding().height(12.dp))
             }
 
-            AnimatedVisibility(
-                editMode,
-                enter = fadeIn() + slideInVertically { -it },
-                exit = fadeOut() + slideOutVertically { -it },
-                modifier = Modifier.align(Alignment.TopCenter),
-            ) {
-                Row(
-                    Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Pill("+ Widget", Color(0x55262330)) { widgetPicker = true }
-                    Pill("Done", model.accent) { editMode = false }
-                }
-            }
         }
 
         // the icon under your finger while dragging
@@ -354,14 +399,16 @@ fun HomeScreen(
             exit = fadeOut() + slideOutVertically { it / 3 },
         ) {
             Box(
-                Modifier.fillMaxSize().background(Color(0xD90B0A0D)).statusBarsPadding()
-                    .graphicsLayer { alpha = if (hideForDrag && drag.source is Source.Library) 0f else 1f }
-                    .pointerInput(Unit) {
-                        var dy = 0f
-                        detectVerticalDragGestures(onDragStart = { dy = 0f }, onVerticalDrag = { _, d -> dy += d },
-                            onDragEnd = { if (dy > pull * 1.5f) drawerOpen = false })
+                Modifier.fillMaxSize()
+                    .offset { IntOffset(0, drawerPull.toInt()) }
+                    .graphicsLayer {
+                        alpha = if (hideForDrag && drag.source is Source.Library) 0f
+                        else 1f - (drawerPull / (screenW * 2f)).coerceIn(0f, 0.5f)
                     }
-            ) { AppDrawer(model, handler) { searchOpen = true } }
+                    .background(Color(0xD90B0A0D), RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
+                    .statusBarsPadding()
+                    .nestedScroll(drawerScroll)
+            ) { AppDrawer(model, handler, onClose = { drawerOpen = false }) { searchOpen = true } }
         }
         Overlay(homeMenu, onDismiss = { homeMenu = false }) {
             HomeMenu(model,

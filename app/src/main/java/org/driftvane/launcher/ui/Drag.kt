@@ -11,6 +11,8 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
@@ -52,6 +54,9 @@ class DragState {
  *  - long-press and let go -> [onMenu]
  *  - long-press and move (or, in edit mode, just move) -> drag: [onDragStart] / [onDragMove] / [onDragEnd]
  * Positions given to the drag callbacks are in root (screen) coordinates.
+ *
+ * The gesture is never restarted when edit mode flips on mid-drag, and a started drag always
+ * ends (even if the gesture gets cancelled), so the dragged icon can't get stuck.
  */
 fun Modifier.iconGestures(
     editMode: Boolean,
@@ -62,43 +67,54 @@ fun Modifier.iconGestures(
     onDragStart: (Offset) -> Unit,
     onDragMove: (Offset) -> Unit,
     onDragEnd: () -> Unit,
-): Modifier = pointerInput(editMode) {
-    awaitEachGesture {
-        val down = awaitFirstDown(requireUnconsumed = false)
-        onPress(true)
-        if (editMode) {
-            val slop = awaitTouchSlopOrCancellation(down.id) { c, _ -> c.consume() }
-            if (slop == null) {
-                onPress(false)
-                return@awaitEachGesture
+): Modifier = composed {
+    val edit by rememberUpdatedState(editMode)
+    val topLeft by rememberUpdatedState(rootTopLeft)
+    val press by rememberUpdatedState(onPress)
+    val tap by rememberUpdatedState(onTap)
+    val menu by rememberUpdatedState(onMenu)
+    val dStart by rememberUpdatedState(onDragStart)
+    val dMove by rememberUpdatedState(onDragMove)
+    val dEnd by rememberUpdatedState(onDragEnd)
+    pointerInput(Unit) {
+        awaitEachGesture {
+            var dragging = false
+            try {
+                val down = awaitFirstDown(requireUnconsumed = false)
+                press(true)
+                if (edit) {
+                    val slop = awaitTouchSlopOrCancellation(down.id) { c, _ -> c.consume() }
+                    if (slop == null) return@awaitEachGesture
+                    dragging = true
+                    press(false)
+                    dStart(topLeft() + slop.position)
+                    drag(slop.id) { c -> dMove(topLeft() + c.position); c.consume() }
+                    return@awaitEachGesture
+                }
+                val lp = awaitLongPressOrCancellation(down.id)
+                if (lp == null) {
+                    press(false)
+                    val up = currentEvent.changes.firstOrNull { it.id == down.id }
+                    if (up != null && up.changedToUpIgnoreConsumed() && !up.isConsumed) tap()
+                    return@awaitEachGesture
+                }
+                val start = lp.position
+                val slopPx = viewConfiguration.touchSlop
+                drag(lp.id) { c ->
+                    if (!dragging && (c.position - start).getDistance() > slopPx) {
+                        dragging = true
+                        press(false)
+                        dStart(topLeft() + c.position)
+                    }
+                    if (dragging) dMove(topLeft() + c.position)
+                    c.consume()
+                }
+                if (!dragging) menu()
+            } finally {
+                press(false)
+                if (dragging) dEnd()
             }
-            onDragStart(rootTopLeft() + slop.position)
-            drag(slop.id) { c -> onDragMove(rootTopLeft() + c.position); c.consume() }
-            onPress(false)
-            onDragEnd()
-            return@awaitEachGesture
         }
-        val lp = awaitLongPressOrCancellation(down.id)
-        if (lp == null) {
-            onPress(false)
-            val up = currentEvent.changes.firstOrNull { it.id == down.id }
-            if (up != null && up.changedToUpIgnoreConsumed() && !up.isConsumed) onTap()
-            return@awaitEachGesture
-        }
-        var dragging = false
-        val start = lp.position
-        val slopPx = viewConfiguration.touchSlop
-        drag(lp.id) { c ->
-            if (!dragging && (c.position - start).getDistance() > slopPx) {
-                dragging = true
-                onPress(false)
-                onDragStart(rootTopLeft() + c.position)
-            }
-            if (dragging) onDragMove(rootTopLeft() + c.position)
-            c.consume()
-        }
-        onPress(false)
-        if (dragging) onDragEnd() else onMenu()
     }
 }
 

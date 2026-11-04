@@ -88,7 +88,7 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         private set
     var showLabels by mutableStateOf(prefs.getBoolean("labels", true))
         private set
-    var iconScale by mutableStateOf(prefs.getFloat("icon_scale", 1f))
+    var iconScale by mutableStateOf(prefs.getFloat("icon_scale", 1.24f))
         private set
     var columns by mutableStateOf(prefs.getInt("columns", 5))
         private set
