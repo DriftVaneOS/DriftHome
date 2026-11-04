@@ -233,6 +233,11 @@ fun HomeScreen(
         }
     }
 
+    // Safety net: leaving edit mode always clears any drag that didn't finish.
+    LaunchedEffect(editMode) {
+        if (!editMode && drag.active) { drag.end(); model.tidy() }
+    }
+
     // Drag to a screen edge and hold: flip to the next page (a new page appears at the end).
     LaunchedEffect(drag.active) {
         var held = 0
