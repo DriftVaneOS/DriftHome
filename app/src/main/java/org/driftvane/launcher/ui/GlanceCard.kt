@@ -33,7 +33,8 @@ import java.util.Locale
 
 /** Big glass card at the top of the first page: time, date, greeting and battery. */
 @Composable
-fun GlanceCard(accent: Color, modifier: Modifier = Modifier) {
+fun GlanceCard(model: org.driftvane.launcher.LauncherModel, modifier: Modifier = Modifier) {
+    val accent = model.accent
     val context = LocalContext.current
     val now by produceState(Date()) {
         while (true) {
@@ -58,9 +59,9 @@ fun GlanceCard(accent: Color, modifier: Modifier = Modifier) {
     val time = SimpleDateFormat(if (android.text.format.DateFormat.is24HourFormat(context)) "HH:mm" else "h:mm", Locale.getDefault()).format(now)
     val date = SimpleDateFormat("EEEE, MMMM d", Locale.getDefault()).format(now)
 
-    Column(modifier.fillMaxWidth().glass(30.dp).padding(22.dp)) {
+    Column(modifier.fillMaxWidth().glass(30.dp, model.glassStrength).padding(20.dp)) {
         Text(greeting.uppercase(), color = accent, fontSize = 12.sp, fontWeight = FontWeight.W800, letterSpacing = 2.sp)
-        Text(time, color = Color.White, fontSize = 64.sp, fontWeight = FontWeight.W800, lineHeight = 68.sp)
+        Text(time, color = Color.White, fontSize = 56.sp, fontWeight = FontWeight.W800, lineHeight = 60.sp)
         Text(date, color = Color(0xFFD5DCE0), fontSize = 16.sp, fontWeight = FontWeight.W700)
         Spacer(Modifier.height(14.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {

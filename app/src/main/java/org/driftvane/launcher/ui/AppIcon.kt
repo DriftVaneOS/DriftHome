@@ -3,16 +3,18 @@ package org.driftvane.launcher.ui
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
@@ -37,6 +39,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.driftvane.launcher.AppEntry
+import org.driftvane.launcher.Folder
+import org.driftvane.launcher.LauncherModel
+import org.driftvane.launcher.isFolder
 
 val LabelStyle = TextStyle(
     color = Color.White,
@@ -46,56 +51,94 @@ val LabelStyle = TextStyle(
     shadow = Shadow(Color(0x99000000), Offset(0f, 2f), 6f),
 )
 
-@OptIn(ExperimentalFoundationApi::class)
+/** Squircle app tile, visuals only. */
 @Composable
-fun AppIcon(
-    app: AppEntry,
-    iconSize: Float,
+fun AppTile(app: AppEntry, size: Float, modifier: Modifier = Modifier) {
+    Box(
+        modifier.size(size.dp)
+            .shadow(10.dp, Squircle, ambientColor = Color.Black, spotColor = Color.Black)
+            .clip(Squircle)
+    ) {
+        Image(app.icon, contentDescription = app.label, modifier = Modifier.fillMaxSize())
+    }
+}
+
+/** Folder tile: glass squircle with a 3x3 preview of the apps inside. */
+@Composable
+fun FolderTile(model: LauncherModel, folder: Folder, size: Float, modifier: Modifier = Modifier) {
+    Box(
+        modifier.size(size.dp)
+            .shadow(10.dp, Squircle, ambientColor = Color.Black, spotColor = Color.Black)
+            .clip(Squircle)
+            .glass(0.dp, 0.55f)
+            .padding((size * 0.12f).dp),
+    ) {
+        val mini = (size * 0.76f / 3f)
+        Column(verticalArrangement = Arrangement.spacedBy((size * 0.02f).dp)) {
+            folder.apps.take(9).chunked(3).forEach { row ->
+                Row(horizontalArrangement = Arrangement.spacedBy((size * 0.02f).dp)) {
+                    row.forEach { k ->
+                        model.apps[k]?.let { a ->
+                            Image(a.icon, null, Modifier.size(mini.dp).clip(Squircle))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Tile + label for any home item (app or folder). [pressed] drives the squish. */
+@Composable
+fun HomeItem(
+    model: LauncherModel,
+    key: String,
+    size: Float,
     showLabel: Boolean,
+    pressed: Boolean = false,
     modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-    onClick: (Rect) -> Unit,
-    onLongClick: () -> Unit,
+    onBounds: (Rect) -> Unit = {},
 ) {
-    val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(
-        if (pressed) 0.86f else 1f,
-        spring(dampingRatio = 0.55f, stiffness = Spring.StiffnessMedium),
-        label = "press",
+        if (pressed) 0.86f else 1f, spring(dampingRatio = 0.55f, stiffness = Spring.StiffnessMedium), label = "press",
     )
-    val bounds = remember { arrayOf(Rect.Zero) }
+    val label = if (isFolder(key)) model.folders[key]?.name ?: "" else model.apps[key]?.label ?: ""
     Column(
         modifier.graphicsLayer { scaleX = scale; scaleY = scale },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Box(
-            Modifier
-                .size(iconSize.dp)
-                .shadow(10.dp, Squircle, ambientColor = Color.Black, spotColor = Color.Black)
-                .clip(Squircle)
-                .onGloballyPositioned { bounds[0] = it.boundsInWindow() }
-                .then(
-                    if (enabled) Modifier.combinedClickable(
-                        interactionSource = interaction,
-                        indication = null,
-                        onClick = { onClick(bounds[0]) },
-                        onLongClick = onLongClick,
-                    ) else Modifier
-                )
-        ) {
-            Image(app.icon, contentDescription = app.label, modifier = Modifier.size(iconSize.dp))
+        val tileMod = Modifier.onGloballyPositioned { onBounds(it.boundsInWindow()) }
+        if (isFolder(key)) {
+            model.folders[key]?.let { FolderTile(model, it, size, tileMod) }
+        } else {
+            model.apps[key]?.let { AppTile(it, size, tileMod) }
         }
         if (showLabel) {
             Spacer(Modifier.height(6.dp))
-            Text(
-                app.label,
-                style = LabelStyle,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.width((iconSize + 18).dp),
-            )
+            Text(label, style = LabelStyle, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.width((size + 18).dp))
+        }
+    }
+}
+
+/** Simple tappable icon for search results and lists. */
+@Composable
+fun TapIcon(app: AppEntry, size: Float, showLabel: Boolean, onClick: (Rect) -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val bounds = remember { arrayOf(Rect.Zero) }
+    val scale by animateFloatAsState(if (pressed) 0.86f else 1f, spring(0.55f), label = "p")
+    Column(
+        Modifier.graphicsLayer { scaleX = scale; scaleY = scale }
+            .clickable(interaction, indication = null) { onClick(bounds[0]) },
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        AppTile(app, size, Modifier.onGloballyPositioned { bounds[0] = it.boundsInWindow() })
+        if (showLabel) {
+            Spacer(Modifier.height(6.dp))
+            Text(app.label, style = LabelStyle, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.width((size + 18).dp))
         }
     }
 }

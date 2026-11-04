@@ -116,7 +116,7 @@ fun SearchOverlay(model: LauncherModel, onLaunch: (String, Rect) -> Unit, onClos
                 ) {
                     items(results, key = { it.key }) { app ->
                         Box(contentAlignment = Alignment.Center) {
-                            AppIcon(app, 54f, true, onClick = { r -> onLaunch(app.key, r); onClose() }, onLongClick = {})
+                            TapIcon(app, 54f, true) { r -> onLaunch(app.key, r); onClose() }
                         }
                     }
                 }

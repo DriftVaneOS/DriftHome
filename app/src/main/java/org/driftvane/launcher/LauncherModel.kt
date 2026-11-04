@@ -37,16 +37,40 @@ data class AppEntry(
     val user: UserHandle,
     val icon: ImageBitmap,
     val category: Int,
+    val installedAt: Long,
 )
+
+data class Folder(val name: String, val apps: List<String>)
+data class WidgetItem(val id: Int, val rows: Int)
+data class Page(val widgets: List<WidgetItem> = emptyList(), val items: List<String> = emptyList())
+
+/** Where a dragged item came from. */
+sealed class Source {
+    data class OnPage(val page: Int) : Source()
+    data object Dock : Source()
+    data class InFolder(val folder: String) : Source()
+    data object Library : Source()
+}
 
 /** AlexLMP accent colors. */
 val Accents = listOf(
-    Color(0xFFFF4D5E), // coral
-    Color(0xFF8CD0F0), // sky
-    Color(0xFFF09CE2), // pink
-    Color(0xFFFFB59C), // peach
-    Color(0xFFFF8A3D), // orange
+    Color(0xFFFF4D5E), Color(0xFF8CD0F0), Color(0xFFF09CE2), Color(0xFFFFB59C), Color(0xFFFF8A3D),
 )
+
+object LibraryStyle {
+    const val SMART = "smart"
+    const val CARDS = "cards"
+    const val LIST = "list"
+    const val DRAWER = "drawer"
+}
+
+object SwipeDown {
+    const val SEARCH = "search"
+    const val NOTIFICATIONS = "notifications"
+    const val NOTHING = "nothing"
+}
+
+fun isFolder(key: String) = key.startsWith("folder:")
 
 class LauncherModel(private val context: Context, private val scope: CoroutineScope) {
     private val launcherApps = context.getSystemService(LauncherApps::class.java)
@@ -54,33 +78,61 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
 
     val apps = mutableStateMapOf<String, AppEntry>()
     val dock = mutableStateListOf<String>()
-    val pages = mutableStateListOf<List<String>>()
+    val pages = mutableStateListOf<Page>()
+    val folders = mutableStateMapOf<String, Folder>()
     var loaded by mutableStateOf(false)
         private set
 
-    // Settings
+    // ---- settings ----
     var accentIndex by mutableStateOf(prefs.getInt("accent", 0))
         private set
     var showLabels by mutableStateOf(prefs.getBoolean("labels", true))
         private set
     var iconScale by mutableStateOf(prefs.getFloat("icon_scale", 1f))
         private set
-    var columns by mutableStateOf(prefs.getInt("columns", 4))
+    var columns by mutableStateOf(prefs.getInt("columns", 5))
+        private set
+    var showGlance by mutableStateOf(prefs.getBoolean("glance", true))
+        private set
+    var showDots by mutableStateOf(prefs.getBoolean("dots", true))
+        private set
+    var showDock by mutableStateOf(prefs.getBoolean("dock", true))
+        private set
+    var libraryStyle by mutableStateOf(prefs.getString("library", LibraryStyle.SMART)!!)
+        private set
+    var swipeDown by mutableStateOf(prefs.getString("swipe_down", SwipeDown.SEARCH)!!)
+        private set
+    var glassStrength by mutableStateOf(prefs.getFloat("glass", 0.72f))
         private set
 
     val accent: Color get() = Accents[accentIndex.coerceIn(0, Accents.lastIndex)]
     val rows = 6
-    fun capacity(page: Int) = columns * (if (page == 0) 4 else rows)
+    private val glanceRows = 2
 
-    fun setAccent(i: Int) { accentIndex = i; prefs.edit().putInt("accent", i).apply() }
-    fun setLabels(v: Boolean) { showLabels = v; prefs.edit().putBoolean("labels", v).apply() }
+    fun changeAccent(i: Int) { accentIndex = i; prefs.edit().putInt("accent", i).apply() }
+    fun changeLabels(v: Boolean) { showLabels = v; prefs.edit().putBoolean("labels", v).apply() }
     fun changeIconScale(v: Float) { iconScale = v; prefs.edit().putFloat("icon_scale", v).apply() }
+    fun changeDots(v: Boolean) { showDots = v; prefs.edit().putBoolean("dots", v).apply() }
+    fun changeDock(v: Boolean) { showDock = v; prefs.edit().putBoolean("dock", v).apply() }
+    fun changeLibrary(v: String) { libraryStyle = v; prefs.edit().putString("library", v).apply() }
+    fun changeSwipeDown(v: String) { swipeDown = v; prefs.edit().putString("swipe_down", v).apply() }
+    fun changeGlass(v: Float) { glassStrength = v; prefs.edit().putFloat("glass", v).apply() }
     fun changeColumns(v: Int) {
-        columns = v
-        prefs.edit().putInt("columns", v).apply()
-        reflow()
+        columns = v; prefs.edit().putInt("columns", v).apply(); reflowAll()
+    }
+    fun changeGlance(v: Boolean) {
+        showGlance = v; prefs.edit().putBoolean("glance", v).apply(); reflowAll()
     }
 
+    /** Grid rows left for icons on a page after the glance card and widgets. */
+    fun iconRows(page: Int): Int {
+        val used = (if (page == 0 && showGlance) glanceRows else 0) +
+            (pages.getOrNull(page)?.widgets?.sumOf { it.rows } ?: 0)
+        return (rows - used).coerceAtLeast(0)
+    }
+    fun capacity(page: Int) = columns * iconRows(page)
+
+    // ---- apps ----
     private val callback = object : LauncherApps.Callback() {
         override fun onPackageRemoved(packageName: String, user: UserHandle) = reload()
         override fun onPackageAdded(packageName: String, user: UserHandle) = reload()
@@ -89,11 +141,7 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         override fun onPackagesUnavailable(p: Array<out String>, user: UserHandle, r: Boolean) = reload()
     }
 
-    fun start() {
-        launcherApps.registerCallback(callback)
-        reload()
-    }
-
+    fun start() { launcherApps.registerCallback(callback); reload() }
     fun stop() = launcherApps.unregisterCallback(callback)
 
     fun reload() {
@@ -111,7 +159,7 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         val size = (context.resources.displayMetrics.density * 72).toInt()
         return launcherApps.getActivityList(null, me)
             .filter { it.componentName.packageName != context.packageName }
-            .map { info -> entryFor(info, size) }
+            .map { entryFor(it, size) }
             .sortedBy { it.label.lowercase() }
     }
 
@@ -124,10 +172,10 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
             user = info.user,
             icon = renderTile(d, size).asImageBitmap(),
             category = info.applicationInfo.category,
+            installedAt = info.firstInstallTime,
         )
     }
 
-    /** Full-bleed tile: adaptive icons fill the whole squircle, legacy icons sit on a glass tile. */
     private fun renderTile(d: Drawable, s: Int): Bitmap {
         val bmp = Bitmap.createBitmap(s, s, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
@@ -144,11 +192,23 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         return bmp
     }
 
-    // ---------------- layout ----------------
+    // ---- launch stats for Suggestions ----
+    fun recordLaunch(key: String) {
+        val n = prefs.getInt("launch_$key", 0)
+        prefs.edit().putInt("launch_$key", n + 1).apply()
+    }
+    fun suggestions(n: Int = 8): List<AppEntry> =
+        apps.values.sortedByDescending { prefs.getInt("launch_${it.key}", 0) }
+            .filter { prefs.getInt("launch_${it.key}", 0) > 0 }.take(n)
+    fun recentlyAdded(n: Int = 8): List<AppEntry> {
+        val week = System.currentTimeMillis() - 7L * 24 * 3600 * 1000
+        return apps.values.filter { it.installedAt > week && !isSystemish(it) }
+            .sortedByDescending { it.installedAt }.take(n)
+    }
 
+    // ---- layout ----
     private fun resolveDefault(intent: Intent): String? {
-        val ri = context.packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)
-            ?: return null
+        val ri = context.packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY) ?: return null
         val pkg = ri.activityInfo?.packageName ?: return null
         return apps.values.firstOrNull { it.component.packageName == pkg }?.key
     }
@@ -160,141 +220,312 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         resolveDefault(Intent(MediaStore.ACTION_IMAGE_CAPTURE)),
     ).distinct()
 
+    private fun hiddenFromHome(): Set<String> = prefs.getStringSet("hidden_home", emptySet()) ?: emptySet()
+
+    private fun placedApps(): Set<String> =
+        (dock + pages.flatMap { it.items } + folders.values.flatMap { it.apps }).toSet()
+
     private fun syncLayout() {
-        val saved = prefs.getString("layout", null)
-        if (dock.isEmpty() && pages.isEmpty() && saved != null) {
-            runCatching {
-                val o = JSONObject(saved)
-                val d = o.getJSONArray("dock")
-                for (i in 0 until d.length()) dock.add(d.getString(i))
-                val p = o.getJSONArray("pages")
-                for (i in 0 until p.length()) {
-                    val a = p.getJSONArray(i)
-                    pages.add(List(a.length()) { a.getString(it) })
-                }
-            }
-        }
+        if (dock.isEmpty() && pages.isEmpty()) restore()
         if (dock.isEmpty() && pages.isEmpty()) {
             dock.addAll(defaultDock())
-            val rest = apps.keys.filter { it !in dock }.sortedBy { apps[it]!!.label.lowercase() }
-            pages.addAll(distribute(rest))
+            pages.add(Page())
+            apps.keys.filter { it !in dock }.sortedBy { apps[it]!!.label.lowercase() }
+                .forEach { append(it) }
         } else {
-            // drop removed apps, append new ones
-            dock.removeAll { it !in apps }
-            val cleaned = pages.map { pg -> pg.filter { it in apps } }
-            pages.clear()
-            pages.addAll(cleaned)
-            val placed = (dock + pages.flatten()).toSet()
+            dock.removeAll { !isFolder(it) && it !in apps }
+            for (id in folders.keys.toList()) {
+                val f = folders[id]!!
+                folders[id] = f.copy(apps = f.apps.filter { it in apps })
+            }
+            for (i in pages.indices) {
+                pages[i] = pages[i].copy(items = pages[i].items.filter { if (isFolder(it)) it in folders else it in apps })
+            }
+            cleanupFolders()
+            val placed = placedApps()
             val hidden = hiddenFromHome()
-            val fresh = apps.keys.filter { it !in placed && it !in hidden }
-            fresh.forEach { addToHome(it, save = false) }
-            compact()
+            apps.keys.filter { it !in placed && it !in hidden }.forEach { append(it) }
         }
-        if (pages.isEmpty()) pages.add(emptyList())
+        if (pages.isEmpty()) pages.add(Page())
+        compact()
         save()
     }
 
-    private fun distribute(keys: List<String>): List<List<String>> {
-        val out = mutableListOf<List<String>>()
-        var i = 0
-        var page = 0
-        while (i < keys.size) {
-            val cap = capacity(page)
-            out.add(keys.subList(i, minOf(keys.size, i + cap)).toList())
-            i += cap
-            page++
+    /** Add to the first page with room, starting from the last page. */
+    private fun append(key: String) {
+        if (pages.isEmpty()) pages.add(Page())
+        val last = pages.lastIndex
+        if (pages[last].items.size < capacity(last)) {
+            pages[last] = pages[last].copy(items = pages[last].items + key)
+        } else {
+            pages.add(Page(items = listOf(key)))
         }
-        return out
     }
 
-    private fun reflow() {
-        val all = pages.flatten()
-        pages.clear()
-        pages.addAll(distribute(all))
-        if (pages.isEmpty()) pages.add(emptyList())
+    /** Insert at a position; anything that no longer fits spills onto the next page. */
+    fun insertAt(page: Int, index: Int, key: String) {
+        while (pages.size <= page) pages.add(Page())
+        val list = pages[page].items.toMutableList()
+        list.add(index.coerceIn(0, list.size), key)
+        pages[page] = pages[page].copy(items = list)
+        spill(page)
+    }
+
+    private fun spill(from: Int) {
+        var p = from
+        while (p < pages.size) {
+            val cap = capacity(p)
+            val items = pages[p].items
+            if (items.size <= cap) { p++; continue }
+            val keep = items.take(cap)
+            val extra = items.drop(cap)
+            pages[p] = pages[p].copy(items = keep)
+            if (p + 1 >= pages.size) pages.add(Page())
+            pages[p + 1] = pages[p + 1].copy(items = extra + pages[p + 1].items)
+            p++
+        }
+    }
+
+    private fun reflowAll() {
+        for (i in pages.indices) spill(i)
+        compact()
         save()
     }
 
     private fun compact() {
-        val keep = pages.filterIndexed { i, p -> i == 0 || p.isNotEmpty() }
-        pages.clear()
-        pages.addAll(keep)
+        val keep = pages.filterIndexed { i, p -> i == 0 || p.items.isNotEmpty() || p.widgets.isNotEmpty() }
+        pages.clear(); pages.addAll(keep)
+        if (pages.isEmpty()) pages.add(Page())
     }
 
-    private fun hiddenFromHome(): Set<String> =
-        prefs.getStringSet("hidden_home", emptySet()) ?: emptySet()
-
-    fun addToHome(key: String, save: Boolean = true) {
-        prefs.edit().putStringSet("hidden_home", hiddenFromHome() - key).apply()
-        if (key in dock || pages.any { key in it }) return
-        val last = pages.lastIndex
-        if (last >= 0 && pages[last].size < capacity(last)) {
-            pages[last] = pages[last] + key
-        } else {
-            pages.add(listOf(key))
+    /** Remove a key from wherever it is (dock, pages, folders). */
+    fun detach(key: String, source: Source) {
+        when (source) {
+            is Source.Dock -> dock.remove(key)
+            is Source.OnPage -> if (source.page in pages.indices) {
+                pages[source.page] = pages[source.page].copy(items = pages[source.page].items - key)
+            }
+            is Source.InFolder -> folders[source.folder]?.let {
+                folders[source.folder] = it.copy(apps = it.apps - key)
+            }
+            is Source.Library -> {
+                // Dragging out of the App Library copies the app to home: take it off its old spot.
+                prefs.edit().putStringSet("hidden_home", hiddenFromHome() - key).apply()
+                if (key in dock) dock.remove(key)
+                for (i in pages.indices) if (key in pages[i].items) pages[i] = pages[i].copy(items = pages[i].items - key)
+                for (id in folders.keys.toList()) folders[id]?.let { f -> if (key in f.apps) folders[id] = f.copy(apps = f.apps - key) }
+            }
         }
-        if (save) save()
+    }
+
+    fun moveToPage(key: String, source: Source, page: Int, index: Int) {
+        detach(key, source)
+        insertAt(page, index, key)
+        cleanupFolders(); compact(); save()
+    }
+
+    fun moveToDock(key: String, source: Source, index: Int): Boolean {
+        if (source !is Source.Dock && dock.size >= 5) return false
+        detach(key, source)
+        dock.add(index.coerceIn(0, dock.size), key)
+        cleanupFolders(); compact(); save()
+        return true
+    }
+
+    /** Drop an app onto another app (new folder) or onto a folder (add to it). */
+    fun dropOnto(key: String, source: Source, page: Int, target: String) {
+        if (isFolder(key) || key == target) return
+        if (isFolder(target)) {
+            detach(key, source)
+            val f = folders[target] ?: return
+            folders[target] = f.copy(apps = f.apps + key)
+        } else {
+            val idx = pages.getOrNull(page)?.items?.indexOf(target) ?: return
+            if (idx < 0) return
+            detach(key, source)
+            val id = "folder:" + System.currentTimeMillis()
+            folders[id] = Folder(suggestFolderName(target, key), listOf(target, key))
+            val list = pages[page].items.toMutableList()
+            val at = list.indexOf(target)
+            if (at >= 0) list[at] = id
+            pages[page] = pages[page].copy(items = list)
+        }
+        cleanupFolders(); compact(); save()
+    }
+
+    fun renameFolder(id: String, name: String) {
+        folders[id]?.let { folders[id] = it.copy(name = name); save() }
+    }
+
+    /** Folders with 0 apps disappear; folders with 1 app turn back into that app. */
+    private fun cleanupFolders() {
+        for (id in folders.keys.toList()) {
+            val f = folders[id] ?: continue
+            if (f.apps.size >= 2) continue
+            val replacement = f.apps.firstOrNull()
+            folders.remove(id)
+            for (i in pages.indices) {
+                val items = pages[i].items
+                val at = items.indexOf(id)
+                if (at >= 0) {
+                    val list = items.toMutableList()
+                    if (replacement != null) list[at] = replacement else list.removeAt(at)
+                    pages[i] = pages[i].copy(items = list)
+                }
+            }
+            val d = dock.indexOf(id)
+            if (d >= 0) { if (replacement != null) dock[d] = replacement else dock.removeAt(d) }
+        }
+    }
+
+    private fun suggestFolderName(a: String, b: String): String {
+        val ca = apps[a]?.let { categoryOf(it) }
+        val cb = apps[b]?.let { categoryOf(it) }
+        return if (ca != null && ca == cb && ca != "More") ca else "Folder"
+    }
+
+    fun addToHome(key: String) {
+        prefs.edit().putStringSet("hidden_home", hiddenFromHome() - key).apply()
+        if (key in placedApps()) return
+        append(key); save()
     }
 
     fun removeFromHome(key: String) {
-        prefs.edit().putStringSet("hidden_home", hiddenFromHome() + key).apply()
+        if (!isFolder(key)) prefs.edit().putStringSet("hidden_home", hiddenFromHome() + key).apply()
         dock.remove(key)
-        for (i in pages.indices) if (key in pages[i]) pages[i] = pages[i] - key
-        compact()
-        if (pages.isEmpty()) pages.add(emptyList())
-        save()
-    }
-
-    fun setPage(index: Int, keys: List<String>) {
-        if (index in pages.indices) {
-            pages[index] = keys
-            save()
-        }
+        for (i in pages.indices) pages[i] = pages[i].copy(items = pages[i].items - key)
+        // removing a folder puts its apps back on the home screen
+        folders.remove(key)?.apps?.forEach { append(it) }
+        compact(); save()
     }
 
     fun toggleDock(key: String) {
         if (key in dock) {
-            dock.remove(key)
-            addToHome(key, save = false)
+            dock.remove(key); append(key)
         } else if (dock.size < 5) {
-            for (i in pages.indices) if (key in pages[i]) pages[i] = pages[i] - key
+            for (i in pages.indices) pages[i] = pages[i].copy(items = pages[i].items - key)
             dock.add(key)
-            compact()
         }
-        save()
+        compact(); save()
     }
+
+    fun setPageItems(page: Int, items: List<String>) {
+        if (page in pages.indices) { pages[page] = pages[page].copy(items = items); save() }
+    }
+
+    // ---- widgets ----
+    fun addWidget(page: Int, id: Int, rows: Int) {
+        while (pages.size <= page) pages.add(Page())
+        val r = rows.coerceIn(1, 4)
+        pages[page] = pages[page].copy(widgets = pages[page].widgets + WidgetItem(id, r))
+        spill(page); save()
+    }
+
+    fun removeWidget(id: Int): Boolean {
+        for (i in pages.indices) {
+            if (pages[i].widgets.any { it.id == id }) {
+                pages[i] = pages[i].copy(widgets = pages[i].widgets.filter { it.id != id })
+                onWidgetRemoved?.invoke(id)
+                compact(); save(); return true
+            }
+        }
+        return false
+    }
+
+    /** Set by the activity so removed widgets are also released from the widget host. */
+    var onWidgetRemoved: ((Int) -> Unit)? = null
+
+    fun ensurePage(i: Int) { while (pages.size <= i) pages.add(Page()) }
+    fun tidy() { cleanupFolders(); compact(); save() }
+
+    fun allWidgetIds(): List<Int> = pages.flatMap { p -> p.widgets.map { it.id } }
 
     fun resetLayout() {
         prefs.edit().remove("layout").remove("hidden_home").apply()
-        dock.clear()
-        pages.clear()
+        dock.clear(); pages.clear(); folders.clear()
         syncLayout()
     }
 
+    // ---- persistence ----
     private fun save() {
         val o = JSONObject()
         o.put("dock", JSONArray(dock.toList()))
-        o.put("pages", JSONArray(pages.map { JSONArray(it) }))
+        o.put("pages", JSONArray(pages.map { p ->
+            JSONObject()
+                .put("items", JSONArray(p.items))
+                .put("widgets", JSONArray(p.widgets.map { JSONObject().put("id", it.id).put("rows", it.rows) }))
+        }))
+        o.put("folders", JSONObject().apply {
+            folders.forEach { (id, f) -> put(id, JSONObject().put("name", f.name).put("apps", JSONArray(f.apps))) }
+        })
         prefs.edit().putString("layout", o.toString()).apply()
     }
 
-    // ---------------- categories for the App Shelf ----------------
-
-    fun shelfGroups(): List<Pair<String, List<AppEntry>>> {
-        val all = apps.values.sortedBy { it.label.lowercase() }
-        fun cat(e: AppEntry) = when (e.category) {
-            ApplicationInfo.CATEGORY_SOCIAL -> "Social"
-            ApplicationInfo.CATEGORY_AUDIO, ApplicationInfo.CATEGORY_VIDEO,
-            ApplicationInfo.CATEGORY_IMAGE -> "Music & Media"
-            ApplicationInfo.CATEGORY_GAME -> "Games"
-            ApplicationInfo.CATEGORY_PRODUCTIVITY -> "Productivity"
-            ApplicationInfo.CATEGORY_MAPS, ApplicationInfo.CATEGORY_NEWS -> "Travel & News"
-            else -> if (e.component.packageName.startsWith("com.android") ||
-                e.component.packageName.startsWith("org.lineageos") ||
-                e.component.packageName.startsWith("com.google.android")
-            ) "System" else "More"
+    private fun restore() {
+        val saved = prefs.getString("layout", null) ?: return
+        runCatching {
+            val o = JSONObject(saved)
+            o.optJSONArray("dock")?.let { d -> for (i in 0 until d.length()) dock.add(d.getString(i)) }
+            o.optJSONObject("folders")?.let { fo ->
+                fo.keys().forEach { id ->
+                    val f = fo.getJSONObject(id)
+                    val a = f.getJSONArray("apps")
+                    folders[id] = Folder(f.optString("name", "Folder"), List(a.length()) { a.getString(it) })
+                }
+            }
+            val p = o.getJSONArray("pages")
+            for (i in 0 until p.length()) {
+                val e = p.get(i)
+                if (e is JSONArray) { // v0.1 format
+                    pages.add(Page(items = List(e.length()) { e.getString(it) }))
+                } else if (e is JSONObject) {
+                    val it2 = e.getJSONArray("items")
+                    val w = e.optJSONArray("widgets") ?: JSONArray()
+                    pages.add(Page(
+                        widgets = List(w.length()) { WidgetItem(w.getJSONObject(it).getInt("id"), w.getJSONObject(it).getInt("rows")) },
+                        items = List(it2.length()) { it2.getString(it) },
+                    ))
+                }
+            }
         }
-        val order = listOf("Social", "Music & Media", "Productivity", "Games", "Travel & News", "More", "System")
-        return all.groupBy(::cat).toList().sortedBy { order.indexOf(it.first) }
+    }
+
+    // ---- categories ----
+    private fun isSystemish(e: AppEntry): Boolean {
+        val p = e.component.packageName
+        return p.startsWith("com.android") || p.startsWith("org.lineageos") ||
+            p.startsWith("com.google.android") || p.startsWith("org.driftvane")
+    }
+
+    fun categoryOf(e: AppEntry): String {
+        val p = e.component.packageName.lowercase()
+        val l = e.label.lowercase()
+        fun has(vararg w: String) = w.any { p.contains(it) || l.contains(it) }
+        return when {
+            e.category == ApplicationInfo.CATEGORY_SOCIAL ||
+                has("telegram", "hachigram", "whatsapp", "discord", "snapchat", "instagram", "messenger",
+                    "signal", "twitter", "reddit", "tiktok", "messag", "mms") -> "Social"
+            e.category == ApplicationInfo.CATEGORY_AUDIO ||
+                has("music", "spotify", "alexlmp", "soundcloud", "podcast", "audio", "radio") -> "Music"
+            e.category == ApplicationInfo.CATEGORY_VIDEO || e.category == ApplicationInfo.CATEGORY_IMAGE ||
+                has("youtube", "netflix", "video", "camera", "photo", "gallery", "twitch", "glimpse") -> "Photo & Video"
+            e.category == ApplicationInfo.CATEGORY_GAME || has("game", "roblox", "minecraft") -> "Games"
+            e.category == ApplicationInfo.CATEGORY_PRODUCTIVITY ||
+                has("docs", "drive", "sheets", "slides", "office", "notes", "calendar", "mail", "gmail",
+                    "zoom", "classroom", "notion", "files") -> "Productivity"
+            e.category == ApplicationInfo.CATEGORY_MAPS || e.category == ApplicationInfo.CATEGORY_NEWS ||
+                has("maps", "uber", "news", "weather") -> "Travel & News"
+            has("chrome", "browser", "jelly", "firefox", "brave") -> "Browsers"
+            has("bank", "pay", "wallet", "cash", "venmo", "shop", "amazon") -> "Money & Shopping"
+            isSystemish(e) -> "Utilities"
+            else -> "More"
+        }
+    }
+
+    fun categories(): List<Pair<String, List<AppEntry>>> {
+        val order = listOf("Social", "Music", "Photo & Video", "Games", "Productivity", "Browsers",
+            "Money & Shopping", "Travel & News", "More", "Utilities")
+        return apps.values.sortedBy { it.label.lowercase() }.groupBy(::categoryOf).toList()
+            .sortedBy { order.indexOf(it.first).let { i -> if (i < 0) 99 else i } }
     }
 }

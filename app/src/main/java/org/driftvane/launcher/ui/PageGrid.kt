@@ -12,14 +12,18 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -27,143 +31,152 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.round
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
-import kotlinx.coroutines.launch
 import org.driftvane.launcher.LauncherModel
+import org.driftvane.launcher.Source
+import org.driftvane.launcher.WidgetItem
+import org.driftvane.launcher.isFolder
 
-/**
- * One home page. Icons sit on a fixed grid; in edit mode they wiggle and can be dragged
- * to a new spot, and the others slide out of the way with springs.
- */
+/** Callbacks for anything you can tap, long-press or drag. */
+interface ItemHandler {
+    fun tap(key: String, bounds: Rect)
+    fun menu(key: String)
+    fun dragStart(key: String, source: Source, at: Offset)
+    fun dragMove(at: Offset)
+    fun dragEnd()
+}
+
+fun cellHeight(model: LauncherModel): Dp = if (model.showLabels) 104.dp else 86.dp
+
+/** One home page: optional glance card, widgets, then the icon grid. */
 @Composable
-fun PageGrid(
+fun HomePage(
     model: LauncherModel,
-    pageIndex: Int,
-    items: List<String>,
-    rows: Int,
+    page: Int,
     editMode: Boolean,
-    onEnterEdit: () -> Unit,
-    onDragging: (Boolean) -> Unit,
-    onLaunch: (String, Rect) -> Unit,
-    onMenu: (String) -> Unit,
+    drag: DragState,
+    handler: ItemHandler,
+    widget: @Composable (WidgetItem, Modifier) -> Unit,
+) {
+    val cellH = cellHeight(model)
+    val p = model.pages.getOrNull(page) ?: return
+    Column(Modifier.fillMaxWidth()) {
+        if (page == 0 && model.showGlance) {
+            Box(Modifier.fillMaxWidth().height(cellH * 2).padding(horizontal = 16.dp, vertical = 6.dp)) {
+                GlanceCard(model, Modifier.fillMaxSize())
+                if (editMode) RemoveBadge(Modifier.align(Alignment.TopStart).offset((-6).dp, (-6).dp)) {
+                    model.changeGlance(false)
+                }
+            }
+        }
+        p.widgets.forEach { w ->
+            key("w${w.id}") {
+                Box(Modifier.fillMaxWidth().height(cellH * w.rows).padding(horizontal = 16.dp, vertical = 6.dp)) {
+                    widget(w, Modifier.fillMaxSize().clip(RoundedCornerShape(26.dp)))
+                    if (editMode) {
+                        Box(Modifier.fillMaxSize().clickable(remember { MutableInteractionSource() }, null) {})
+                        RemoveBadge(Modifier.align(Alignment.TopStart).offset((-6).dp, (-6).dp)) {
+                            model.removeWidget(w.id)
+                        }
+                    }
+                }
+            }
+        }
+        IconGrid(model, page, p.items, editMode, drag, handler)
+    }
+}
+
+@Composable
+private fun IconGrid(
+    model: LauncherModel,
+    page: Int,
+    items: List<String>,
+    editMode: Boolean,
+    drag: DragState,
+    handler: ItemHandler,
 ) {
     val cols = model.columns
-    val cellHeightDp = if (model.showLabels) 104.dp else 86.dp
-    BoxWithConstraints(Modifier.fillMaxWidth().height(cellHeightDp * rows)) {
+    val rows = model.iconRows(page)
+    val cellHdp = cellHeight(model)
+    BoxWithConstraints(
+        Modifier.fillMaxWidth().height(cellHdp * rows).clipToBounds()
+    ) {
         val density = LocalDensity.current
-        val cellW = constraints.maxWidth / cols
-        val cellH = with(density) { cellHeightDp.roundToPx() }
+        val cellW = constraints.maxWidth.toFloat() / cols
+        val cellH = with(density) { cellHdp.toPx() }
         val cellWdp = with(density) { cellW.toDp() }
-        val haptics = LocalHapticFeedback.current
-        val scope = rememberCoroutineScope()
 
-        var order by remember(items) { mutableStateOf(items) }
-        var dragKey by remember { mutableStateOf<String?>(null) }
-        var dragPos by remember { mutableStateOf(Offset.Zero) }
-
-        fun slot(i: Int) = IntOffset((i % cols) * cellW, (i / cols) * cellH)
+        Box(Modifier.fillMaxSize().onGloballyPositioned {
+            drag.grids[page] = GridInfo(it.boundsInRoot(), cellW, cellH, cols)
+        })
 
         val wiggle = rememberInfiniteTransition(label = "wiggle")
         val angle by wiggle.animateFloat(
-            -1.6f, 1.6f,
-            infiniteRepeatable(tween(130, easing = LinearEasing), RepeatMode.Reverse),
-            label = "angle",
+            -1.6f, 1.6f, infiniteRepeatable(tween(130, easing = LinearEasing), RepeatMode.Reverse), label = "a",
         )
+        val order = previewOrder(items, page, drag.key, drag.hover)
+        val ontoTarget = (drag.hover as? Hover.Onto)?.takeIf { it.page == page }?.target
+        val iconSize = 60f * model.iconScale * (if (cols >= 6) 0.86f else if (cols == 5) 0.94f else 1f)
 
-        order.forEachIndexed { index, appKey ->
-            val app = model.apps[appKey] ?: return@forEachIndexed
-            key(appKey) {
-                val target = slot(index)
+        order.forEachIndexed { index, itemKey ->
+            if (!isFolder(itemKey) && model.apps[itemKey] == null) return@forEachIndexed
+            if (isFolder(itemKey) && model.folders[itemKey] == null) return@forEachIndexed
+            key(itemKey) {
+                val target = IntOffset(((index % cols) * cellW).toInt(), ((index / cols) * cellH).toInt())
                 val pos = remember { Animatable(target, IntOffset.VectorConverter) }
-                val dragging = dragKey == appKey
-                LaunchedEffect(target, dragging) {
-                    if (!dragging) pos.animateTo(target, spring(dampingRatio = 0.72f, stiffness = 380f))
-                }
-                val lift by animateFloatAsState(if (dragging) 1.15f else 1f, spring(0.6f), label = "lift")
-                val phase = if (appKey.hashCode() % 2 == 0) 1f else -1f
-                val shown = if (dragging) dragPos.round() else pos.value
+                LaunchedEffect(target) { pos.animateTo(target, spring(dampingRatio = 0.75f, stiffness = 420f)) }
+                var pressed by remember { mutableStateOf(false) }
+                val topLeft = remember { arrayOf(Offset.Zero) }
+                val bounds = remember { arrayOf(Rect.Zero) }
+                val hidden = drag.key == itemKey
+                val grow by animateFloatAsState(if (ontoTarget == itemKey) 1.14f else 1f, spring(0.6f), label = "g")
+                val phase = if (itemKey.hashCode() % 2 == 0) 1f else -1f
 
                 Box(
                     Modifier
-                        .offset { shown }
-                        .size(cellWdp, cellHeightDp)
-                        .zIndex(if (dragging) 2f else 0f)
+                        .offset { pos.value }
+                        .size(cellWdp, cellHdp)
+                        .zIndex(if (hidden) -1f else 0f)
+                        .onGloballyPositioned { topLeft[0] = it.positionInRoot() }
                         .graphicsLayer {
-                            rotationZ = if (editMode && !dragging) angle * phase else 0f
-                            scaleX = lift
-                            scaleY = lift
+                            alpha = if (hidden) 0f else 1f
+                            rotationZ = if (editMode) angle * phase else 0f
+                            scaleX = grow; scaleY = grow
                         }
-                        .then(
-                            if (editMode) Modifier.pointerInput(appKey, order) {
-                                detectDragGestures(
-                                    onDragStart = {
-                                        dragKey = appKey
-                                        dragPos = Offset(pos.value.x.toFloat(), pos.value.y.toFloat())
-                                        onDragging(true)
-                                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    },
-                                    onDrag = { change, delta ->
-                                        change.consume()
-                                        dragPos += delta
-                                        val c = dragPos + Offset(cellW / 2f, cellH / 2f)
-                                        val col = (c.x / cellW).toInt().coerceIn(0, cols - 1)
-                                        val row = (c.y / cellH).toInt().coerceIn(0, rows - 1)
-                                        val t = (row * cols + col).coerceIn(0, order.lastIndex)
-                                        val cur = order.indexOf(appKey)
-                                        if (cur >= 0 && t != cur) {
-                                            order = order.toMutableList().apply { removeAt(cur); add(t, appKey) }
-                                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        }
-                                    },
-                                    onDragEnd = {
-                                        val from = dragPos.round()
-                                        scope.launch { pos.snapTo(from) }
-                                        dragKey = null
-                                        onDragging(false)
-                                        model.setPage(pageIndex, order)
-                                    },
-                                    onDragCancel = {
-                                        dragKey = null
-                                        onDragging(false)
-                                        model.setPage(pageIndex, order)
-                                    },
-                                )
-                            } else Modifier
+                        .iconGestures(
+                            editMode = editMode,
+                            rootTopLeft = { topLeft[0] },
+                            onPress = { pressed = it },
+                            onTap = { handler.tap(itemKey, bounds[0]) },
+                            onMenu = { handler.menu(itemKey) },
+                            onDragStart = { handler.dragStart(itemKey, Source.OnPage(page), it) },
+                            onDragMove = { handler.dragMove(it) },
+                            onDragEnd = { handler.dragEnd() },
                         ),
                     contentAlignment = Alignment.Center,
                 ) {
-                    AppIcon(
-                        app = app,
-                        iconSize = 60f * model.iconScale,
-                        showLabel = model.showLabels,
-                        enabled = !editMode,
-                        onClick = { r -> onLaunch(appKey, r) },
-                        onLongClick = {
-                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                            onMenu(appKey)
-                        },
-                    )
-                    if (editMode) {
-                        RemoveBadge(Modifier.align(Alignment.TopStart).offset(10.dp, 4.dp)) {
-                            model.removeFromHome(appKey)
+                    HomeItem(model, itemKey, iconSize, model.showLabels, pressed, onBounds = { bounds[0] = it })
+                    if (editMode && !hidden) {
+                        RemoveBadge(Modifier.align(Alignment.TopStart).offset(8.dp, 4.dp)) {
+                            model.removeFromHome(itemKey)
                         }
                     }
                 }
@@ -175,12 +188,7 @@ fun PageGrid(
 @Composable
 fun RemoveBadge(modifier: Modifier, onClick: () -> Unit) {
     Box(
-        modifier
-            .size(24.dp)
-            .background(Color(0xE6262330), CircleShape)
-            .clickable(onClick = onClick),
+        modifier.size(24.dp).background(Color(0xE6262330), CircleShape).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
-    ) {
-        Text("–", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.W900)
-    }
+    ) { Text("–", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.W900) }
 }
