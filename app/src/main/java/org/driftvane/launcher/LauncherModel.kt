@@ -104,14 +104,22 @@ object SwipeDown {
 
 fun isFolder(key: String) = key.startsWith("folder:")
 
+/** An empty cell on a home page (apps can sit anywhere on the grid, with gaps). */
+const val EMPTY = ""
+
+private fun List<String>.trimEmpty(): List<String> = dropLastWhile { it == EMPTY }
+
+/** Take [key] off a page but keep everyone else where they are. */
+private fun List<String>.gapOut(key: String): List<String> = map { if (it == key) EMPTY else it }.trimEmpty()
+
 class LauncherModel(private val context: Context, private val scope: CoroutineScope) {
     private val launcherApps = context.getSystemService(LauncherApps::class.java)
     private val prefs = context.getSharedPreferences("drifthome", Context.MODE_PRIVATE)
 
     // v0.3.4 look: 5 columns with XL icons, applied once (users can change it after).
     init {
-        if (prefs.getInt("look", 0) < 4) {
-            prefs.edit().putInt("look", 4).putInt("columns", 5).putFloat("icon_scale", 1.26f)
+        if (prefs.getInt("look", 0) < 5) {
+            prefs.edit().putInt("look", 5).putInt("columns", 5).putFloat("icon_scale", 1.18f)
                 .putFloat("label_size", 12f).putBoolean("pending_reflow", true).apply()
         }
     }
@@ -128,7 +136,7 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         private set
     var showLabels by mutableStateOf(prefs.getBoolean("labels", true))
         private set
-    var iconScale by mutableStateOf(prefs.getFloat("icon_scale", 1.26f))
+    var iconScale by mutableStateOf(prefs.getFloat("icon_scale", 1.18f))
         private set
     var columns by mutableStateOf(prefs.getInt("columns", 5))
         private set
@@ -189,7 +197,7 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         prefs.edit().putStringSet("hidden_apps", hiddenApps).apply()
         if (hidden) {
             dock.remove(key)
-            for (i in pages.indices) pages[i] = pages[i].copy(items = pages[i].items - key)
+            for (i in pages.indices) pages[i] = pages[i].copy(items = pages[i].items.gapOut(key))
             for (id in folders.keys.toList()) folders[id]?.let { f -> folders[id] = f.copy(apps = f.apps - key) }
             cleanupFolders(); compact(); save()
         } else {
@@ -364,6 +372,31 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         resolveDefault(Intent(MediaStore.ACTION_IMAGE_CAPTURE)),
     ).distinct()
 
+    /** The apps a fresh home screen starts with; everything else lives in the App Library. */
+    private fun essentials(): List<String> {
+        fun cat(c: String) = resolveDefault(Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, c))
+        fun pkg(vararg names: String) = names.firstNotNullOfOrNull { n -> apps.values.firstOrNull { it.component.packageName == n }?.key }
+        val picks = listOfNotNull(
+            pkg("com.google.android.apps.photos") ?: cat(Intent.CATEGORY_APP_GALLERY),
+            pkg("com.google.android.calendar") ?: cat(Intent.CATEGORY_APP_CALENDAR),
+            pkg("com.google.android.deskclock", "com.android.deskclock"),
+            pkg("com.google.android.gm") ?: cat(Intent.CATEGORY_APP_EMAIL),
+            pkg("com.google.android.apps.maps") ?: cat(Intent.CATEGORY_APP_MAPS),
+            apps.values.firstOrNull { it.label.contains("alexlmp", ignoreCase = true) }?.key ?: cat(Intent.CATEGORY_APP_MUSIC),
+            pkg("com.google.android.youtube"),
+            pkg("com.android.vending"),
+            cat(Intent.CATEGORY_APP_FILES),
+            cat(Intent.CATEGORY_APP_CALCULATOR),
+            pkg("com.android.settings"),
+        )
+        return picks.distinct().filter { it !in dock }.take(15)
+    }
+
+    /** Apps DriftHome has already seen; only apps installed after that are added to home. */
+    private fun seenApps(): Set<String>? = prefs.getStringSet("seen_apps", null)
+    private fun markSeen(keys: Collection<String>) =
+        prefs.edit().putStringSet("seen_apps", (seenApps() ?: emptySet()) + keys).apply()
+
     private fun hiddenFromHome(): Set<String> = prefs.getStringSet("hidden_home", emptySet()) ?: emptySet()
 
     private fun placedApps(): Set<String> =
@@ -374,8 +407,8 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         if (dock.isEmpty() && pages.isEmpty()) {
             dock.addAll(defaultDock())
             pages.add(Page())
-            apps.keys.filter { it !in dock }.sortedBy { apps[it]!!.label.lowercase() }
-                .forEach { append(it) }
+            essentials().forEach { append(it) }
+            markSeen(apps.keys)
         } else {
             dock.removeAll { !isFolder(it) && it !in apps }
             for (id in folders.keys.toList()) {
@@ -383,12 +416,18 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
                 folders[id] = f.copy(apps = f.apps.filter { it in apps })
             }
             for (i in pages.indices) {
-                pages[i] = pages[i].copy(items = pages[i].items.filter { if (isFolder(it)) it in folders else it in apps })
+                pages[i] = pages[i].copy(items = pages[i].items.map {
+                    if (it == EMPTY || (if (isFolder(it)) it in folders else it in apps)) it else EMPTY
+                }.trimEmpty())
             }
             cleanupFolders()
             val placed = placedApps()
             val hidden = hiddenFromHome() + hiddenApps
-            apps.keys.filter { it !in placed && it !in hidden }.forEach { append(it) }
+            // first run of this version: everything already installed counts as seen
+            val seen = seenApps() ?: apps.keys.toSet().also { markSeen(it) }
+            // newly installed apps go to the first free spot on home
+            apps.keys.filter { it !in seen && it !in placed && it !in hidden }.forEach { append(it) }
+            markSeen(apps.keys)
         }
         if (pages.isEmpty()) pages.add(Page())
         compact()
@@ -398,12 +437,34 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
     /** Add to the first page with room, starting from the last page. */
     private fun append(key: String) {
         if (pages.isEmpty()) pages.add(Page())
-        val last = pages.lastIndex
-        if (pages[last].items.size < capacity(last)) {
-            pages[last] = pages[last].copy(items = pages[last].items + key)
-        } else {
-            pages.add(Page(items = listOf(key)))
+        for (p in pages.indices) {
+            val items = pages[p].items
+            val gap = items.indexOf(EMPTY)
+            if (gap >= 0 && gap < capacity(p)) {
+                pages[p] = pages[p].copy(items = items.toMutableList().also { it[gap] = key }); return
+            }
+            if (items.size < capacity(p)) { pages[p] = pages[p].copy(items = items + key); return }
         }
+        pages.add(Page(items = listOf(key)))
+    }
+
+    /**
+     * Put [key] in grid cell [index] of [page]. An empty cell just takes it; a taken cell
+     * shifts the apps after it forward into the next gap (or onto the next page).
+     */
+    private fun placeAt(page: Int, index: Int, key: String) {
+        while (pages.size <= page) pages.add(Page())
+        val list = pages[page].items.toMutableList()
+        while (list.size <= index) list.add(EMPTY)
+        if (list[index] == EMPTY) {
+            list[index] = key
+        } else {
+            list.add(index, key)
+            val gap = list.subList(index + 1, list.size).indexOf(EMPTY)
+            if (gap >= 0) list.removeAt(index + 1 + gap)
+        }
+        pages[page] = pages[page].copy(items = list.trimEmpty())
+        spill(page)
     }
 
     /** Insert at a position; anything that no longer fits spills onto the next page. */
@@ -419,13 +480,20 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         var p = from
         while (p < pages.size) {
             val cap = capacity(p)
-            val items = pages[p].items
+            var items = pages[p].items.trimEmpty()
+            if (items.size > cap) {
+                // close gaps at the end of the page before moving apps to the next one
+                val m = items.toMutableList()
+                while (m.size > cap && m.lastIndexOf(EMPTY) >= 0) m.removeAt(m.lastIndexOf(EMPTY))
+                items = m
+            }
+            pages[p] = pages[p].copy(items = items)
             if (items.size <= cap) { p++; continue }
             val keep = items.take(cap)
             val extra = items.drop(cap)
             pages[p] = pages[p].copy(items = keep)
             if (p + 1 >= pages.size) pages.add(Page())
-            pages[p + 1] = pages[p + 1].copy(items = extra + pages[p + 1].items)
+            pages[p + 1] = pages[p + 1].copy(items = (extra + pages[p + 1].items).trimEmpty())
             p++
         }
     }
@@ -437,7 +505,8 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
     }
 
     private fun compact() {
-        val keep = pages.filterIndexed { i, p -> i == 0 || p.items.isNotEmpty() || p.widgets.isNotEmpty() }
+        val keep = pages.map { it.copy(items = it.items.trimEmpty()) }
+            .filterIndexed { i, p -> i == 0 || p.items.isNotEmpty() || p.widgets.isNotEmpty() }
         pages.clear(); pages.addAll(keep)
         if (pages.isEmpty()) pages.add(Page())
     }
@@ -447,7 +516,7 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         when (source) {
             is Source.Dock -> dock.remove(key)
             is Source.OnPage -> if (source.page in pages.indices) {
-                pages[source.page] = pages[source.page].copy(items = pages[source.page].items - key)
+                pages[source.page] = pages[source.page].copy(items = pages[source.page].items.gapOut(key))
             }
             is Source.InFolder -> folders[source.folder]?.let {
                 folders[source.folder] = it.copy(apps = it.apps - key)
@@ -456,7 +525,7 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
                 // Dragging out of the App Library copies the app to home: take it off its old spot.
                 prefs.edit().putStringSet("hidden_home", hiddenFromHome() - key).apply()
                 if (key in dock) dock.remove(key)
-                for (i in pages.indices) if (key in pages[i].items) pages[i] = pages[i].copy(items = pages[i].items - key)
+                for (i in pages.indices) if (key in pages[i].items) pages[i] = pages[i].copy(items = pages[i].items.gapOut(key))
                 for (id in folders.keys.toList()) folders[id]?.let { f -> if (key in f.apps) folders[id] = f.copy(apps = f.apps - key) }
             }
         }
@@ -464,7 +533,7 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
 
     fun moveToPage(key: String, source: Source, page: Int, index: Int) {
         detach(key, source)
-        insertAt(page, index, key)
+        placeAt(page, index, key)
         cleanupFolders(); compact(); save()
     }
 
@@ -513,7 +582,7 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
                 val at = items.indexOf(id)
                 if (at >= 0) {
                     val list = items.toMutableList()
-                    if (replacement != null) list[at] = replacement else list.removeAt(at)
+                    list[at] = replacement ?: EMPTY
                     pages[i] = pages[i].copy(items = list)
                 }
             }
@@ -537,7 +606,7 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
     fun removeFromHome(key: String) {
         if (!isFolder(key)) prefs.edit().putStringSet("hidden_home", hiddenFromHome() + key).apply()
         dock.remove(key)
-        for (i in pages.indices) pages[i] = pages[i].copy(items = pages[i].items - key)
+        for (i in pages.indices) pages[i] = pages[i].copy(items = pages[i].items.gapOut(key))
         // removing a folder puts its apps back on the home screen
         folders.remove(key)?.apps?.forEach { append(it) }
         compact(); save()
@@ -547,7 +616,7 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         if (key in dock) {
             dock.remove(key); append(key)
         } else if (dock.size < 5) {
-            for (i in pages.indices) pages[i] = pages[i].copy(items = pages[i].items - key)
+            for (i in pages.indices) pages[i] = pages[i].copy(items = pages[i].items.gapOut(key))
             dock.add(key)
         }
         compact(); save()

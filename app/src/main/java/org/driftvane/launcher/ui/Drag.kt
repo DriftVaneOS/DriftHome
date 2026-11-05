@@ -125,11 +125,20 @@ fun Modifier.iconGestures(
  */
 fun previewOrder(items: List<String>, page: Int, dragKey: String?, hover: Hover): List<String> {
     if (dragKey == null) return items
-    val base = items.filter { it != dragKey }
-    return when {
-        hover is Hover.Insert && hover.page == page ->
-            base.toMutableList().apply { add(hover.index.coerceIn(0, base.size), dragKey) }
-        dragKey in items -> base + dragKey
-        else -> items
+    // the dragged app leaves a gap where it was; everyone else stays put
+    val base = items.map { if (it == dragKey) org.driftvane.launcher.EMPTY else it }.toMutableList()
+    if (hover is Hover.Insert && hover.page == page) {
+        val i = hover.index.coerceAtLeast(0)
+        while (base.size <= i) base.add(org.driftvane.launcher.EMPTY)
+        if (base[i] == org.driftvane.launcher.EMPTY) {
+            base[i] = dragKey
+        } else {
+            // cell taken: shift forward into the next gap
+            base.add(i, dragKey)
+            val gap = base.subList(i + 1, base.size).indexOf(org.driftvane.launcher.EMPTY)
+            if (gap >= 0) base.removeAt(i + 1 + gap)
+        }
+        return base
     }
+    return if (dragKey in items) items else base
 }

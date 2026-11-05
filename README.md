@@ -2,6 +2,12 @@
 
 The DriftVaneOS launcher. Pages of apps, a floating glass dock, folders, widgets and a smart App Library, styled to match AlexLMP.
 
+## v0.3.5
+
+- **Put apps anywhere:** drag an app to any cell, gaps are kept. Dropping on a taken cell nudges apps forward into the next gap.
+- **Clean start:** a fresh home screen only has the essentials (photos, calendar, clock, mail, maps, music, YouTube, Play Store, files, calculator, settings). Everything else is in the App Library. Newly installed apps still land in the first free spot.
+- Large icons by default.
+
 ## v0.3.4: premium pass
 
 - Calmer, cleaner look: thin rims on glass, soft icon shadows, lighter type, gentler press animation.

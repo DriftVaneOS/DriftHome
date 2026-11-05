@@ -198,16 +198,18 @@ fun HomeScreen(
         val idx = row * g.cols + col
         val items = model.pages[page].items
         val current = previewOrder(items, page, k, drag.hover)
-        val base = items.filter { it != k }
         if (idx < current.size) {
             val under = current[idx]
             if (under == k) return drag.hover
-            val cx = g.bounds.left + (col + 0.5f) * g.cellW
-            val cy = g.bounds.top + (row + 0.5f) * g.cellH
-            val near = abs(pos.x - cx) < g.cellW * 0.3f && abs(pos.y - cy) < g.cellH * 0.28f
-            if (near && !isFolder(k)) return Hover.Onto(page, under)
+            if (under != org.driftvane.launcher.EMPTY) {
+                val cx = g.bounds.left + (col + 0.5f) * g.cellW
+                val cy = g.bounds.top + (row + 0.5f) * g.cellH
+                val near = abs(pos.x - cx) < g.cellW * 0.3f && abs(pos.y - cy) < g.cellH * 0.28f
+                if (near && !isFolder(k)) return Hover.Onto(page, under)
+            }
         }
-        return Hover.Insert(page, idx.coerceAtMost(base.size))
+        // any cell on the grid, empty or not
+        return Hover.Insert(page, idx)
     }
 
     val handler = remember(model) {
