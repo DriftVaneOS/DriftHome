@@ -120,7 +120,7 @@ fun SettingsPage(model: LauncherModel, onClose: () -> Unit) {
                             Group { ActionRow("Reset home screen layout", Color(0xFFFF6B78)) { model.resetLayout(); onClose() } }
                         }
                         item {
-                            Text("DriftHome 0.5 · made for DriftVaneOS", color = Color(0x80FFFFFF), fontSize = 12.sp,
+                            Text("DriftHome 0.6 · made for DriftVaneOS", color = Color(0x80FFFFFF), fontSize = 12.sp,
                                 fontWeight = FontWeight.W600, modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp),
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                         }
@@ -155,6 +155,14 @@ fun SettingsPage(model: LauncherModel, onClose: () -> Unit) {
                     }
                     SPage.HOME -> {
                         item {
+                            Group(title = "Top of first page") {
+                                listOf("dashboard" to "Tonal dashboard", "bold" to "Bold clock").forEachIndexed { i, (id, n) ->
+                                    CheckRow(n, if (id == "dashboard") "Time card, now playing and battery tiles" else "Huge two-tone clock with now playing",
+                                        model.topStyle == id, model.accent, last = i == 1) { model.changeTopStyle(id) }
+                                }
+                            }
+                        }
+                        item {
                             Group(title = "Grid") {
                                 Seg(listOf("4 columns" to 4, "5 columns" to 5, "6 columns" to 6), model.columns, model.accent) { model.changeColumns(it) }
                             }
@@ -171,7 +179,8 @@ fun SettingsPage(model: LauncherModel, onClose: () -> Unit) {
                         }
                         item {
                             Group {
-                                ToggleRow("Big clock", model.showGlance, model.accent) { model.changeGlance(it) }
+                                ToggleRow("Top of first page", model.showGlance, model.accent) { model.changeGlance(it) }
+                                ToggleRow("Panel behind apps", model.gridPanel, model.accent) { model.changeGridPanel(it) }
                                 ToggleRow("Search pill & page dots", model.showDots, model.accent, last = true) { model.changeDots(it) }
                             }
                         }
@@ -184,8 +193,8 @@ fun SettingsPage(model: LauncherModel, onClose: () -> Unit) {
                         }
                         item {
                             Group(title = "Style") {
-                                listOf("line" to "Line", "glass" to "Tinted card", "clear" to "Clear", "solid" to "Solid").forEachIndexed { i, (id, n) ->
-                                    CheckRow(n, null, model.dockStyle == id, model.accent, last = i == 3) { model.changeDockStyle(id) }
+                                listOf("tonal" to "Tonal", "line" to "Line", "glass" to "Tinted card", "clear" to "Clear", "solid" to "Solid").forEachIndexed { i, (id, n) ->
+                                    CheckRow(n, null, model.dockStyle == id, model.accent, last = i == 4) { model.changeDockStyle(id) }
                                 }
                             }
                         }
@@ -327,10 +336,12 @@ fun dockModifier(model: LauncherModel): Modifier = when (model.dockStyle) {
             androidx.compose.ui.geometry.Offset(size.width - 24f, 0f), 2f)
     }
     "solid" -> Modifier.clip(RoundedCornerShape(32.dp)).background(Color(0xE6141218))
+    // solid tonal pill in the accent
+    "tonal" -> Modifier.clip(RoundedCornerShape(34.dp)).background(Tonal.strong(model.accent))
     else -> Modifier.glass(32.dp, model.glassStrength * 0.85f)
 }
 
-private fun dockName(id: String) = when (id) { "clear" -> "Clear"; "solid" -> "Solid"; "line" -> "Line"; else -> "Tinted card" }
+private fun dockName(id: String) = when (id) { "clear" -> "Clear"; "solid" -> "Solid"; "line" -> "Line"; "tonal" -> "Tonal"; else -> "Tinted card" }
 private fun libraryName(id: String) = when (id) {
     LibraryStyle.CARDS -> "Category cards"; LibraryStyle.LIST -> "A–Z list"; LibraryStyle.DRAWER -> "Swipe-up drawer"; else -> "Smart categories"
 }

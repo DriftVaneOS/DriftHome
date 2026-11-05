@@ -233,7 +233,7 @@ private fun CategoryCard(
                             i < shown.size -> LibIcon(shown[i], 50f, false, handler, model)
                             i == 3 && showAll -> Box(
                                 Modifier.size(50.dp).clip(LocalIconShape.current).background(accent.copy(alpha = 0.22f))
-                                    .clickable { onOpen() },
+                                    .clickable { android.util.Log.i("DriftHome", "open category $title"); onOpen() },
                                 contentAlignment = Alignment.Center,
                             ) { Text("+${apps.size - 3}", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.W600) }
                         }
@@ -272,7 +272,13 @@ fun CategorySheet(model: LauncherModel, title: String, handler: ItemHandler) {
             apps.chunked(4).forEach { row ->
                 Row(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
                     row.forEach { app ->
-                        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { LibIcon(app, 54f, true, handler, model) }
+                        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                            // plain tap target: tap opens the app (hold-and-drag stays in the main library)
+                            TapIcon(app, 54f, true) { b ->
+                                android.util.Log.i("DriftHome", "category tap ${app.key}")
+                                handler.tap(app.key, b)
+                            }
+                        }
                     }
                     repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
                 }

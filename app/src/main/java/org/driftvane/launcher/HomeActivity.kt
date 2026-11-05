@@ -100,13 +100,15 @@ class HomeActivity : ComponentActivity(), HomeActions {
     // ---------------- HomeActions ----------------
 
     override fun launch(key: String, bounds: Rect) {
-        val app = model.apps[key] ?: return
+        android.util.Log.i("DriftHome", "launch $key")
+        val app = model.apps[key] ?: run { android.util.Log.w("DriftHome", "launch: unknown app $key"); return }
         val la = getSystemService(LauncherApps::class.java)
         val r = android.graphics.Rect(bounds.left.toInt(), bounds.top.toInt(), bounds.right.toInt(), bounds.bottom.toInt())
         val opts = if (!r.isEmpty) {
             ActivityOptions.makeScaleUpAnimation(window.decorView, r.left, r.top, r.width(), r.height()).toBundle()
         } else null
-        runCatching { la.startMainActivity(app.component, app.user, r, opts) }.onFailure {
+        runCatching { la.startMainActivity(app.component, app.user, r, opts) }.onFailure { e ->
+            android.util.Log.w("DriftHome", "launch with animation failed", e)
             // fallback: plain launch without the zoom animation
             runCatching { la.startMainActivity(app.component, app.user, null, null) }.onFailure {
                 // last resort: the app's normal launch intent

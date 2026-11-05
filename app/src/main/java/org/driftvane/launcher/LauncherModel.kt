@@ -104,15 +104,16 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
     private val launcherApps = context.getSystemService(LauncherApps::class.java)
     private val prefs = context.getSharedPreferences("drifthome", Context.MODE_PRIVATE)
 
-    // v0.3.4 look: 5 columns with XL icons, applied once (users can change it after).
+    // the current default look, applied once on update (users can change it after)
     init {
-        if (prefs.getInt("look", 0) < 6) {
-            // v0.5 "Bold clock" look
-            prefs.edit().putInt("look", 6).putInt("columns", 5).putFloat("icon_scale", 1.04f)
-                .putString("icon_theme", IconTheme.OUTLINE).putString("icon_shape", "rounded")
-                .putString("dock_style", "line").putBoolean("labels", false).putBoolean("glance", true)
+        if (prefs.getInt("look", 0) < 7) {
+            // v0.6 "Tonal dashboard" look
+            prefs.edit().putInt("look", 7).putInt("columns", 5).putFloat("icon_scale", 1.1f)
+                .putString("icon_theme", IconTheme.ORIGINAL).putString("icon_shape", "circle")
+                .putString("dock_style", "tonal").putBoolean("labels", false).putBoolean("glance", true)
+                .putString("top_style", "dashboard").putBoolean("grid_panel", true)
                 .putString("library", LibraryStyle.CARDS)
-                .putFloat("label_size", 12f).putBoolean("pending_reflow", true).apply()
+                .putBoolean("pending_reflow", true).apply()
         }
     }
 
@@ -128,11 +129,17 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         private set
     var showLabels by mutableStateOf(prefs.getBoolean("labels", false))
         private set
-    var iconScale by mutableStateOf(prefs.getFloat("icon_scale", 1.04f))
+    var iconScale by mutableStateOf(prefs.getFloat("icon_scale", 1.1f))
         private set
     var columns by mutableStateOf(prefs.getInt("columns", 5))
         private set
     var showGlance by mutableStateOf(prefs.getBoolean("glance", true))
+        private set
+    /** What sits at the top of the first page: "dashboard" (tonal cards) or "bold" (big clock). */
+    var topStyle by mutableStateOf(prefs.getString("top_style", "dashboard")!!)
+        private set
+    /** Solid tonal panel behind the app grid. */
+    var gridPanel by mutableStateOf(prefs.getBoolean("grid_panel", true))
         private set
     var showDots by mutableStateOf(prefs.getBoolean("dots", true))
         private set
@@ -144,11 +151,11 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         private set
     var glassStrength by mutableStateOf(prefs.getFloat("glass", 0.72f))
         private set
-    var iconShape by mutableStateOf(prefs.getString("icon_shape", "squircle")!!)
+    var iconShape by mutableStateOf(prefs.getString("icon_shape", "circle")!!)
         private set
-    var iconTheme by mutableStateOf(prefs.getString("icon_theme", IconTheme.OUTLINE)!!)
+    var iconTheme by mutableStateOf(prefs.getString("icon_theme", IconTheme.ORIGINAL)!!)
         private set
-    var dockStyle by mutableStateOf(prefs.getString("dock_style", "line")!!)
+    var dockStyle by mutableStateOf(prefs.getString("dock_style", "tonal")!!)
         private set
     var haptics by mutableStateOf(prefs.getBoolean("haptics", true))
         private set
@@ -202,6 +209,8 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
     fun changeColumns(v: Int) {
         columns = v; prefs.edit().putInt("columns", v).apply(); reflowAll()
     }
+    fun changeTopStyle(v: String) { topStyle = v; prefs.edit().putString("top_style", v).apply() }
+    fun changeGridPanel(v: Boolean) { gridPanel = v; prefs.edit().putBoolean("grid_panel", v).apply() }
     fun changeGlance(v: Boolean) {
         showGlance = v; prefs.edit().putBoolean("glance", v).apply(); reflowAll()
     }
