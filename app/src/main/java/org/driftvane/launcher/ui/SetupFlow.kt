@@ -80,6 +80,8 @@ fun SetupFlow(model: LauncherModel) {
             Column(
                 Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(horizontal = 22.dp, vertical = 16.dp)
             ) {
+                Text("DriftVaneOS · Made by Alex Desrosier", color = Blue, fontSize = 14.sp, fontWeight = FontWeight.W600)
+                Spacer(Modifier.height(4.dp))
                 Text("Step ${s + 1} of 2", color = Muted, fontSize = 14.sp, fontWeight = FontWeight.W500)
                 Spacer(Modifier.height(6.dp))
                 Text(if (s == 0) "Pick your Settings" else "Pick your home screen", color = Color.White,
