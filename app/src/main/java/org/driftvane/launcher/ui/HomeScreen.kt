@@ -504,7 +504,7 @@ fun HomeScreen(
             enter = fadeIn() + slideInVertically(spring(dampingRatio = 0.9f, stiffness = 380f)) { it / 4 },
             exit = fadeOut() + slideOutVertically { it / 4 },
         ) { SettingsPage(model) { settingsOpen = false } }
-        // first-boot setup: pick your Settings style, then your home screen
+        // first-boot setup: pick your home screen
         AnimatedVisibility(model.loaded && !model.setupDone, enter = fadeIn(), exit = fadeOut()) {
             SetupFlow(model)
         }
