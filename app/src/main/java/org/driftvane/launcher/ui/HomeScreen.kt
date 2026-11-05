@@ -398,14 +398,20 @@ fun HomeScreen(
                             alpha = 1f - lib
                         }
                 ) {
-                Box(Modifier.fillMaxWidth().height(48.dp), contentAlignment = Alignment.Center) {
+                // slim strip: page dots (or the Search pill if turned on); edit buttons float above it
+                Box(Modifier.fillMaxWidth().height(if (model.searchPill) 48.dp else 16.dp), contentAlignment = Alignment.Center) {
                     androidx.compose.animation.AnimatedVisibility(
                         model.showDots && !editMode, enter = fadeIn(), exit = fadeOut(),
                     ) {
-                        SearchPill(model, pageCount, pager.currentPage, pager.isScrollInProgress) { searchOpen = true }
+                        if (model.searchPill) {
+                            SearchPill(model, pageCount, pager.currentPage, pager.isScrollInProgress) { searchOpen = true }
+                        } else {
+                            PageDots(pageCount, pager.currentPage, model.accent)
+                        }
                     }
                     androidx.compose.animation.AnimatedVisibility(
                         editMode,
+                        modifier = Modifier.offset(y = if (model.searchPill) 0.dp else (-22).dp),
                         enter = fadeIn() + scaleIn(initialScale = 0.85f),
                         exit = fadeOut() + scaleOut(targetScale = 0.85f),
                     ) {

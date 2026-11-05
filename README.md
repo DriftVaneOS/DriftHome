@@ -2,6 +2,13 @@
 
 The DriftVaneOS launcher. Pages of apps, a floating glass dock, folders, widgets and a smart App Library, styled to match AlexLMP.
 
+## v0.8
+
+- DriftVane blue by default: clock, outline icons, dots and dock line are all blue
+  (pick another accent in Home settings -> Look).
+- The Search pill is off by default (just small page dots), so the grid goes lower and apps
+  can sit right above the dock. Turn the pill back on in Home settings -> Home screen.
+
 ## v0.7
 
 - Bold clock is the default look again (Tonal dashboard stays as an option in Home settings).

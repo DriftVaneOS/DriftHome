@@ -120,7 +120,7 @@ fun SettingsPage(model: LauncherModel, onClose: () -> Unit) {
                             Group { ActionRow("Reset home screen layout", Color(0xFFFF6B78)) { model.resetLayout(); onClose() } }
                         }
                         item {
-                            Text("DriftHome 0.7 · made for DriftVaneOS", color = Color(0x80FFFFFF), fontSize = 12.sp,
+                            Text("DriftHome 0.8 · made for DriftVaneOS", color = Color(0x80FFFFFF), fontSize = 12.sp,
                                 fontWeight = FontWeight.W600, modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp),
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                         }
@@ -181,7 +181,8 @@ fun SettingsPage(model: LauncherModel, onClose: () -> Unit) {
                             Group {
                                 ToggleRow("Top of first page", model.showGlance, model.accent) { model.changeGlance(it) }
                                 ToggleRow("Panel behind apps", model.gridPanel, model.accent) { model.changeGridPanel(it) }
-                                ToggleRow("Search pill & page dots", model.showDots, model.accent, last = true) { model.changeDots(it) }
+                                ToggleRow("Page dots", model.showDots, model.accent) { model.changeDots(it) }
+                                ToggleRow("Search pill above the dock", model.searchPill, model.accent, last = true) { model.changeSearchPill(it) }
                             }
                         }
                     }
