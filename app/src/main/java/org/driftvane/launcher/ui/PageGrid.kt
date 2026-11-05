@@ -11,6 +11,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -38,6 +39,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -91,7 +93,7 @@ fun wiggleAngle(): Float {
     return a
 }
 
-/** One home page: optional glance card, widgets, then the icon grid. */
+/** One home page: optional clock tiles at the top, then one grid that widgets and icons share. */
 @Composable
 fun HomePage(
     model: LauncherModel,
@@ -112,133 +114,174 @@ fun HomePage(
                 }
             }
         }
-        // widgets: full-width rows, half-width ones side by side
-        var i = 0
-        val ws = p.widgets
-        while (i < ws.size) {
-            val w = ws[i]
-            if (w.half && i + 1 < ws.size && ws[i + 1].half) {
-                val w2 = ws[i + 1]
-                val rows = maxOf(w.rows, w2.rows)
-                Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp)) {
-                    WidgetBox(model, w, rows, editMode, cellH, Modifier.weight(1f), widget)
-                    WidgetBox(model, w2, rows, editMode, cellH, Modifier.weight(1f), widget)
-                }
-                i += 2
-            } else {
-                Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp)) {
-                    WidgetBox(model, w, w.rows, editMode, cellH, if (w.half) Modifier.fillMaxWidth(0.5f) else Modifier.fillMaxWidth(), widget)
-                }
-                i++
-            }
-        }
-        IconGrid(model, page, p.items, editMode, drag, handler)
+        HomeGrid(model, page, p.items, p.widgets, editMode, drag, handler, widget)
     }
 }
 
+private enum class Edge { LEFT, TOP, RIGHT, BOTTOM }
+
 /**
- * A widget on the home screen. In edit mode:
- *  - drag it up/down to reorder, sideways off the edge to move it to another page
- *  - drag the corner handle to resize, tap ⇆ for half/full width, – to remove
+ * A widget on the grid. In edit mode: drag it to any spot (or past the screen edge to the
+ * next page), drag any of its 4 edges to resize, – to remove. It snaps to the grid on release.
  */
 @Composable
-private fun WidgetBox(
+private fun WidgetCell(
     model: LauncherModel,
+    page: Int,
     w: WidgetItem,
-    rows: Int,
     editMode: Boolean,
-    cellH: Dp,
-    modifier: Modifier,
+    cellW: Float,
+    cellH: Float,
     widget: @Composable (WidgetItem, Modifier) -> Unit,
 ) {
     key("w${w.id}") {
         val density = LocalDensity.current
-        val cellPx = with(density) { cellH.toPx() }
-        var grow by remember { mutableFloatStateOf(0f) }
-        val move = remember { Animatable(Offset.Zero, Offset.VectorConverter) }
         val scope = rememberCoroutineScope()
+        // live drag offset of the whole widget, and live edge offsets while resizing (px)
+        val move = remember { Animatable(Offset.Zero, Offset.VectorConverter) }
+        var dl by remember { mutableFloatStateOf(0f) }
+        var dt by remember { mutableFloatStateOf(0f) }
+        var dr by remember { mutableFloatStateOf(0f) }
+        var db by remember { mutableFloatStateOf(0f) }
+        val cur by rememberUpdatedState(w)
         val angle = if (editMode) wiggleAngle() else 0f
-        val heightDp = with(density) { (cellPx * rows + grow).coerceIn(cellPx * 0.9f, cellPx * 4.2f).toDp() }
-        val lifted by animateFloatAsState(if (move.value != Offset.Zero) 1.04f else 1f, spring(0.6f), label = "lift")
+        val active = move.value != Offset.Zero || dl != 0f || dt != 0f || dr != 0f || db != 0f
+        val lifted by animateFloatAsState(if (move.value != Offset.Zero) 1.04f else 1f, spring(0.7f), label = "lift")
+
+        val target = IntOffset((w.col * cellW).roundToInt(), (w.row * cellH).roundToInt())
+        val pos = remember { Animatable(target, IntOffset.VectorConverter) }
+        LaunchedEffect(target) { pos.animateTo(target, spring(dampingRatio = 0.8f, stiffness = 420f)) }
+
+        val minW = cellW * 0.9f
+        val minH = cellH * 0.9f
+        val wPx = (w.spanX * cellW - dl + dr).coerceAtLeast(minW)
+        val hPx = (w.spanY * cellH - dt + db).coerceAtLeast(minH)
+        val wDp = with(density) { wPx.toDp() }
+        val hDp = with(density) { hPx.toDp() }
+
+        fun snapResize() {
+            val c = cur
+            val left = ((c.col * cellW + dl) / cellW).roundToInt()
+            val top = ((c.row * cellH + dt) / cellH).roundToInt()
+            val right = ((c.col * cellW + c.spanX * cellW + dr) / cellW).roundToInt()
+            val bottom = ((c.row * cellH + c.spanY * cellH + db) / cellH).roundToInt()
+            val nl = left.coerceIn(0, model.columns - 1)
+            val nt = top.coerceIn(0, model.iconRows(page) - 1)
+            val sx = (right - nl).coerceIn(1, model.columns - nl)
+            val sy = (bottom - nt).coerceIn(1, model.iconRows(page) - nt)
+            model.setWidgetRect(c.id, nl, nt, sx, sy)
+            dl = 0f; dt = 0f; dr = 0f; db = 0f
+        }
 
         Box(
-            modifier
-                .height(heightDp)
+            Modifier
+                .offset { pos.value + IntOffset((move.value.x + dl).roundToInt(), (move.value.y + dt).roundToInt()) }
+                .size(wDp, hDp)
+                .zIndex(if (active) 3f else 1f)
+                .graphicsLayer { rotationZ = if (active) 0f else angle * 0.35f; scaleX = lifted; scaleY = lifted }
                 .padding(6.dp)
-                .zIndex(if (move.value != Offset.Zero) 3f else 0f)
-                .offset { IntOffset(move.value.x.roundToInt(), move.value.y.roundToInt()) }
-                .graphicsLayer { rotationZ = angle * 0.35f; scaleX = lifted; scaleY = lifted }
         ) {
-            widget(w, Modifier.fillMaxSize().clip(RoundedCornerShape(26.dp)))
+            widget(w, Modifier.fillMaxSize().clip(RoundedCornerShape(24.dp)))
             if (editMode) {
                 // body: drag to move
                 Box(
                     Modifier.fillMaxSize()
-                        .clip(RoundedCornerShape(26.dp))
-                        .background(Color(0x22FFFFFF))
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(Color(0x1AFFFFFF))
+                        .border(1.5.dp, Color.White.copy(alpha = if (active) 0.8f else 0.35f), RoundedCornerShape(24.dp))
                         .pointerInput(w.id) {
                             detectDragGestures(
                                 onDrag = { c, d -> c.consume(); scope.launch { move.snapTo(move.value + d) } },
                                 onDragEnd = {
+                                    val c = cur
                                     val o = move.value
-                                    val wpx = size.width.toFloat()
-                                    val hpx = size.height.toFloat()
+                                    val screenW = cellW * model.columns
+                                    val x = c.col * cellW + o.x
+                                    var placed = false
                                     when {
-                                        abs(o.x) > wpx * 0.35f -> model.moveWidgetPage(w.id, if (o.x > 0) 1 else -1)
-                                        o.y > hpx * 0.5f -> model.moveWidget(w.id, 1)
-                                        o.y < -hpx * 0.5f -> model.moveWidget(w.id, -1)
+                                        x + c.spanX * cellW * 0.5f > screenW + cellW * 0.4f -> model.moveWidgetPage(c.id, 1)
+                                        x + c.spanX * cellW * 0.5f < -cellW * 0.4f -> model.moveWidgetPage(c.id, -1)
+                                        else -> {
+                                            val nc = ((c.col * cellW + o.x) / cellW).roundToInt().coerceIn(0, model.columns - c.spanX)
+                                            val nr = ((c.row * cellH + o.y) / cellH).roundToInt().coerceIn(0, model.iconRows(page) - c.spanY)
+                                            if (model.setWidgetRect(c.id, nc, nr, c.spanX, c.spanY)) {
+                                                // the grid position animates there; drop the finger offset
+                                                placed = true
+                                                scope.launch {
+                                                    pos.snapTo(pos.value + IntOffset(o.x.roundToInt(), o.y.roundToInt()))
+                                                    move.snapTo(Offset.Zero)
+                                                }
+                                            }
+                                        }
                                     }
-                                    scope.launch { move.animateTo(Offset.Zero, spring(dampingRatio = 0.7f, stiffness = 380f)) }
+                                    if (!placed) scope.launch { move.animateTo(Offset.Zero, spring(dampingRatio = 0.75f, stiffness = 380f)) }
                                 },
-                                onDragCancel = { scope.launch { move.animateTo(Offset.Zero, spring(0.7f)) } },
+                                onDragCancel = { scope.launch { move.animateTo(Offset.Zero, spring(0.75f)) } },
                             )
                         }
                 )
-                RemoveBadge(Modifier.align(Alignment.TopStart).offset((-8).dp, (-8).dp)) { model.removeWidget(w.id) }
-                // half/full width
-                Box(
-                    Modifier.align(Alignment.TopEnd).offset(8.dp, (-8).dp).size(30.dp)
-                        .shadow(6.dp, CircleShape).glassShape(CircleShape, 0.9f).clickable { model.toggleWidgetHalf(w.id) },
-                    contentAlignment = Alignment.Center,
-                ) { Text(if (w.half) "⇲" else "⇆", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.W600) }
-                // resize handle: drag up/down
-                Box(
-                    Modifier.align(Alignment.BottomCenter).offset(y = 10.dp).width(64.dp).height(22.dp)
-                        .pointerInput(w.id) {
-                            detectDragGestures(
-                                onDrag = { c, d -> c.consume(); grow += d.y },
-                                onDragEnd = {
-                                    val newRows = ((cellPx * rows + grow) / cellPx).roundToInt().coerceIn(1, 4)
-                                    grow = 0f
-                                    model.resizeWidget(w.id, newRows)
-                                },
-                                onDragCancel = { grow = 0f },
+                // resize handles on all 4 sides
+                Edge.entries.forEach { e ->
+                    val align = when (e) {
+                        Edge.LEFT -> Alignment.CenterStart; Edge.RIGHT -> Alignment.CenterEnd
+                        Edge.TOP -> Alignment.TopCenter; Edge.BOTTOM -> Alignment.BottomCenter
+                    }
+                    val horizontal = e == Edge.LEFT || e == Edge.RIGHT
+                    Box(
+                        Modifier.align(align)
+                            .offset(
+                                x = when (e) { Edge.LEFT -> (-12).dp; Edge.RIGHT -> 12.dp; else -> 0.dp },
+                                y = when (e) { Edge.TOP -> (-12).dp; Edge.BOTTOM -> 12.dp; else -> 0.dp },
                             )
-                        },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Box(Modifier.width(44.dp).height(6.dp).background(Color.White.copy(alpha = 0.85f), RoundedCornerShape(50)))
+                            .size(if (horizontal) 28.dp else 64.dp, if (horizontal) 64.dp else 28.dp)
+                            .pointerInput(w.id, e) {
+                                detectDragGestures(
+                                    onDrag = { c, d ->
+                                        c.consume()
+                                        when (e) {
+                                            Edge.LEFT -> dl = (dl + d.x).coerceAtMost(cur.spanX * cellW - minW)
+                                            Edge.RIGHT -> dr = (dr + d.x).coerceAtLeast(minW - cur.spanX * cellW)
+                                            Edge.TOP -> dt = (dt + d.y).coerceAtMost(cur.spanY * cellH - minH)
+                                            Edge.BOTTOM -> db = (db + d.y).coerceAtLeast(minH - cur.spanY * cellH)
+                                        }
+                                    },
+                                    onDragEnd = { snapResize() },
+                                    onDragCancel = { dl = 0f; dt = 0f; dr = 0f; db = 0f },
+                                )
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Box(
+                            Modifier.size(if (horizontal) 6.dp else 40.dp, if (horizontal) 40.dp else 6.dp)
+                                .shadow(4.dp, RoundedCornerShape(50))
+                                .background(Color.White, RoundedCornerShape(50))
+                        )
+                    }
                 }
+                RemoveBadge(Modifier.align(Alignment.TopStart).offset((-8).dp, (-8).dp)) { model.removeWidget(w.id) }
             }
         }
     }
 }
 
+/** The grid: widgets sit on their cells; icon i sits in the i-th cell no widget covers. */
 @Composable
-private fun IconGrid(
+private fun HomeGrid(
     model: LauncherModel,
     page: Int,
     items: List<String>,
+    widgets: List<WidgetItem>,
     editMode: Boolean,
     drag: DragState,
     handler: ItemHandler,
+    widget: @Composable (WidgetItem, Modifier) -> Unit,
 ) {
     val cols = model.columns
     val rows = model.iconRows(page)
     val cellHdp = cellHeight(model)
     val tick = LocalResumeTick.current
     BoxWithConstraints(
-        Modifier.fillMaxWidth().padding(horizontal = 6.dp).height(cellHdp * rows).clipToBounds()
+        Modifier.fillMaxWidth().padding(horizontal = 6.dp).height(cellHdp * rows)
     ) {
         val density = LocalDensity.current
         val cellW = constraints.maxWidth.toFloat() / cols
@@ -250,6 +293,9 @@ private fun IconGrid(
             drag.grids[page] = GridInfo(it.boundsInRoot(), cellW, cellH, cols)
         })
 
+        widgets.forEach { w -> WidgetCell(model, page, w, editMode, cellW, cellH, widget) }
+
+        val free = remember(widgets, cols, rows) { model.freeCells(page) }
         val angle = if (editMode) wiggleAngle() else 0f
         val order = previewOrder(items, page, drag.key, drag.hover)
         val ontoTarget = (drag.hover as? Hover.Onto)?.takeIf { it.page == page }?.target
@@ -258,8 +304,9 @@ private fun IconGrid(
         order.forEachIndexed { index, itemKey ->
             if (!isFolder(itemKey) && model.apps[itemKey] == null) return@forEachIndexed
             if (isFolder(itemKey) && model.folders[itemKey] == null) return@forEachIndexed
+            val cell = free.getOrNull(index) ?: return@forEachIndexed
             key(itemKey) {
-                val target = IntOffset(((index % cols) * cellW).toInt(), ((index / cols) * cellH).toInt())
+                val target = IntOffset(((cell % cols) * cellW).toInt(), ((cell / cols) * cellH).toInt())
                 val pos = remember { Animatable(target, IntOffset.VectorConverter) }
                 LaunchedEffect(target) { pos.animateTo(target, spring(dampingRatio = 0.78f, stiffness = 420f)) }
                 // cascade in when you come back home (row by row, like a wave)
@@ -267,7 +314,7 @@ private fun IconGrid(
                 LaunchedEffect(tick) {
                     if (tick > 1) {
                         enter.snapTo(0f)
-                        delay(((index / cols) * 28L + (index % cols) * 10L))
+                        delay(((cell / cols) * 28L + (cell % cols) * 10L))
                         enter.animateTo(1f, spring(dampingRatio = 0.62f, stiffness = 300f))
                     }
                 }
@@ -288,8 +335,8 @@ private fun IconGrid(
                             val e = enter.value
                             alpha = if (hidden) 0f else e.coerceIn(0f, 1f)
                             rotationZ = if (editMode) angle * phase else 0f
-                            val s = grow * (0.84f + 0.16f * e)
-                            scaleX = s; scaleY = s
+                            val sc = grow * (0.84f + 0.16f * e)
+                            scaleX = sc; scaleY = sc
                             translationY = (1f - e) * 26f * dens
                         }
                         .iconGestures(

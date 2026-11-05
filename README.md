@@ -2,6 +2,12 @@
 
 The DriftVaneOS launcher. Pages of apps, a floating glass dock, folders, widgets and a smart App Library, styled to match AlexLMP.
 
+## v0.4
+
+- **Widgets live on the grid:** in edit mode drag a widget to any spot (icons flow around it),
+  past the screen edge to move it to another page, and drag any of its 4 edges to resize it.
+- App Library category sheets: tap an app to open it, or hold and drag it to home.
+
 ## v0.3.5
 
 - **Put apps anywhere:** drag an app to any cell, gaps are kept. Dropping on a taken cell nudges apps forward into the next gap.

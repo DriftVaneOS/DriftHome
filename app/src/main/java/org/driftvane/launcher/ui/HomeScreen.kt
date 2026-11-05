@@ -195,7 +195,9 @@ fun HomeScreen(
         if (rows <= 0) return Hover.None
         val col = ((pos.x - g.bounds.left) / g.cellW).toInt().coerceIn(0, g.cols - 1)
         val row = ((pos.y - g.bounds.top) / g.cellH).toInt().coerceIn(0, rows - 1)
-        val idx = row * g.cols + col
+        // widgets cover some cells; icons use the rest, so translate the cell into an icon slot
+        val idx = model.freeCells(page).indexOf(row * g.cols + col)
+        if (idx < 0) return Hover.None
         val items = model.pages[page].items
         val current = previewOrder(items, page, k, drag.hover)
         if (idx < current.size) {

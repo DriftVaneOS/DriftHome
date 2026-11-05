@@ -106,7 +106,10 @@ class HomeActivity : ComponentActivity(), HomeActions {
         val opts = if (!r.isEmpty) {
             ActivityOptions.makeScaleUpAnimation(window.decorView, r.left, r.top, r.width(), r.height()).toBundle()
         } else null
-        runCatching { la.startMainActivity(app.component, app.user, r, opts) }
+        runCatching { la.startMainActivity(app.component, app.user, r, opts) }.onFailure {
+            // fallback: plain launch without the zoom animation
+            runCatching { la.startMainActivity(app.component, app.user, null, null) }
+        }
         model.recordLaunch(key)
     }
 
@@ -174,7 +177,13 @@ class HomeActivity : ComponentActivity(), HomeActions {
             if (it.targetCellHeight > 0) it.targetCellHeight * cellPx else it.minHeight.toFloat()
         } ?: cellPx * 2
         val rows = kotlin.math.ceil(heightPx / cellPx).toInt().coerceIn(1, 4)
-        model.addWidget(pendingPage, id, rows)
+        val cellWPx = resources.displayMetrics.widthPixels / model.columns.toFloat()
+        val widthPx = info?.let {
+            if (it.targetCellWidth > 0) it.targetCellWidth * cellWPx else it.minWidth.toFloat()
+        } ?: (cellWPx * model.columns)
+        // at least half the width so widgets don't start out tiny; resize later from any edge
+        val cols = kotlin.math.ceil(widthPx / cellWPx).toInt().coerceIn((model.columns + 1) / 2, model.columns)
+        model.addWidget(pendingPage, id, rows, cols)
         pendingWidget = -1
         pendingInfo = null
     }

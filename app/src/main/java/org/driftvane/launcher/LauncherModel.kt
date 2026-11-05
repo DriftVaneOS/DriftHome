@@ -59,21 +59,8 @@ object IconTheme {
     val all = listOf(ORIGINAL to "Original", THEMED to "Themed", LIGHT to "Light", GLASS to "Liquid glass", MONO to "Mono")
 }
 
-/** Rows a page's widgets take: half-width widgets sit side by side in pairs. */
-fun widgetBlockRows(ws: List<WidgetItem>): Int {
-    var total = 0
-    var i = 0
-    while (i < ws.size) {
-        val w = ws[i]
-        if (w.half && i + 1 < ws.size && ws[i + 1].half) {
-            total += maxOf(w.rows, ws[i + 1].rows); i += 2
-        } else {
-            total += w.rows; i++
-        }
-    }
-    return total
-}
-data class WidgetItem(val id: Int, val rows: Int, val half: Boolean = false)
+/** A widget placed on the home grid: top-left cell ([col], [row]) and size in cells. */
+data class WidgetItem(val id: Int, val col: Int = 0, val row: Int = 0, val spanX: Int = 4, val spanY: Int = 2)
 data class Page(val widgets: List<WidgetItem> = emptyList(), val items: List<String> = emptyList())
 
 /** Where a dragged item came from. */
@@ -214,13 +201,74 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         showGlance = v; prefs.edit().putBoolean("glance", v).apply(); reflowAll()
     }
 
-    /** Grid rows left for icons on a page after the glance card and widgets. */
-    fun iconRows(page: Int): Int {
-        val used = (if (page == 0 && showGlance) glanceRows else 0) +
-            widgetBlockRows(pages.getOrNull(page)?.widgets ?: emptyList())
-        return (rows - used).coerceAtLeast(0)
+    /** Grid rows on a page below the clock tiles (widgets and icons share them). */
+    fun iconRows(page: Int): Int = (rows - (if (page == 0 && showGlance) glanceRows else 0)).coerceAtLeast(1)
+
+    /** Which grid cells widgets cover on [page] (row-major), optionally ignoring one widget. */
+    fun covered(page: Int, exceptId: Int? = null): BooleanArray {
+        val r = iconRows(page); val c = columns
+        val grid = BooleanArray(r * c)
+        pages.getOrNull(page)?.widgets?.forEach { w ->
+            if (w.id == exceptId) return@forEach
+            for (y in w.row until (w.row + w.spanY).coerceAtMost(r))
+                for (x in w.col until (w.col + w.spanX).coerceAtMost(c))
+                    if (x >= 0 && y >= 0) grid[y * c + x] = true
+        }
+        return grid
     }
-    fun capacity(page: Int) = columns * iconRows(page)
+
+    /** Cells icons can use on [page], in reading order. Icon i sits in freeCells[i]. */
+    fun freeCells(page: Int): List<Int> = covered(page).withIndex().filter { !it.value }.map { it.index }
+
+    fun capacity(page: Int) = freeCells(page).size
+
+    /** Can a widget sit at this spot on [page] without leaving the grid or overlapping another? */
+    fun fits(page: Int, col: Int, row: Int, spanX: Int, spanY: Int, exceptId: Int? = null): Boolean {
+        val r = iconRows(page); val c = columns
+        if (col < 0 || row < 0 || spanX < 1 || spanY < 1 || col + spanX > c || row + spanY > r) return false
+        val grid = covered(page, exceptId)
+        for (y in row until row + spanY) for (x in col until col + spanX) if (grid[y * c + x]) return false
+        return true
+    }
+
+    /** First spot (top to bottom, left to right) where a widget of this size fits. */
+    private fun findSpot(page: Int, spanX: Int, spanY: Int, exceptId: Int? = null): Pair<Int, Int>? {
+        for (y in 0..(iconRows(page) - spanY)) for (x in 0..(columns - spanX))
+            if (fits(page, x, y, spanX, spanY, exceptId)) return x to y
+        return null
+    }
+
+    /** Keep widgets inside the grid (after a column or clock-card change) and off each other. */
+    private fun fixWidgets() {
+        val queue = pages.map { it.widgets }.toMutableList()
+        for (i in pages.indices) pages[i] = pages[i].copy(widgets = emptyList())
+        var p = 0
+        while (p < queue.size) {
+            while (pages.size <= p) pages.add(Page())
+            val placed = mutableListOf<WidgetItem>()
+            val homeless = mutableListOf<WidgetItem>()
+            for (w0 in queue[p]) {
+                val sx = w0.spanX.coerceIn(1, columns)
+                val sy = w0.spanY.coerceIn(1, iconRows(p))
+                var w = w0.copy(
+                    spanX = sx, spanY = sy,
+                    col = w0.col.coerceIn(0, columns - sx), row = w0.row.coerceIn(0, iconRows(p) - sy),
+                )
+                if (!fits(p, w.col, w.row, w.spanX, w.spanY)) {
+                    val spot = findSpot(p, w.spanX, w.spanY)
+                    if (spot == null) { homeless += w; continue }
+                    w = w.copy(col = spot.first, row = spot.second)
+                }
+                placed += w
+                pages[p] = pages[p].copy(widgets = placed.toList())
+            }
+            if (homeless.isNotEmpty()) {
+                if (p + 1 >= queue.size) queue.add(emptyList())
+                queue[p + 1] = homeless + queue[p + 1]
+            }
+            p++
+        }
+    }
 
     // ---- apps ----
     private val callback = object : LauncherApps.Callback() {
@@ -430,6 +478,8 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
             markSeen(apps.keys)
         }
         if (pages.isEmpty()) pages.add(Page())
+        fixWidgets()
+        for (i in pages.indices) spill(i)
         compact()
         save()
     }
@@ -499,6 +549,7 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
     }
 
     private fun reflowAll() {
+        fixWidgets()
         for (i in pages.indices) spill(i)
         compact()
         save()
@@ -627,11 +678,20 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
     }
 
     // ---- widgets ----
-    fun addWidget(page: Int, id: Int, rows: Int) {
-        while (pages.size <= page) pages.add(Page())
-        val r = rows.coerceIn(1, 4)
-        pages[page] = pages[page].copy(widgets = pages[page].widgets + WidgetItem(id, r))
-        spill(page); save()
+    /** Add a widget [spanX]×[spanY] cells at the first free spot, starting on [page]. */
+    fun addWidget(page: Int, id: Int, spanY: Int, spanX: Int = columns) {
+        val sx = spanX.coerceIn(1, columns)
+        var p = page.coerceAtLeast(0)
+        while (true) {
+            ensurePage(p)
+            val sy = spanY.coerceIn(1, iconRows(p))
+            val spot = findSpot(p, sx, sy)
+            if (spot != null) {
+                pages[p] = pages[p].copy(widgets = pages[p].widgets + WidgetItem(id, spot.first, spot.second, sx, sy))
+                spill(p); save(); return
+            }
+            p++
+        }
     }
 
     fun removeWidget(id: Int): Boolean {
@@ -659,42 +719,32 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         return null
     }
 
-    fun resizeWidget(id: Int, rows: Int) {
-        val (p, i) = findWidget(id) ?: return
+    /**
+     * Move and/or resize a widget on its page. Returns false (nothing changes) if the new spot
+     * leaves the grid or overlaps another widget. Icons flow around it.
+     */
+    fun setWidgetRect(id: Int, col: Int, row: Int, spanX: Int, spanY: Int): Boolean {
+        val (p, i) = findWidget(id) ?: return false
+        if (!fits(p, col, row, spanX, spanY, exceptId = id)) return false
         val ws = pages[p].widgets.toMutableList()
-        ws[i] = ws[i].copy(rows = rows.coerceIn(1, 4))
+        if (ws[i].col == col && ws[i].row == row && ws[i].spanX == spanX && ws[i].spanY == spanY) return true
+        ws[i] = ws[i].copy(col = col, row = row, spanX = spanX, spanY = spanY)
         pages[p] = pages[p].copy(widgets = ws)
         spill(p); save()
+        return true
     }
 
-    fun toggleWidgetHalf(id: Int) {
-        val (p, i) = findWidget(id) ?: return
-        val ws = pages[p].widgets.toMutableList()
-        ws[i] = ws[i].copy(half = !ws[i].half)
-        pages[p] = pages[p].copy(widgets = ws)
-        spill(p); save()
-    }
-
-    /** Move a widget up (-1) or down (+1) among the widgets on its page. */
-    fun moveWidget(id: Int, dir: Int) {
-        val (p, i) = findWidget(id) ?: return
-        val j = i + dir
-        val ws = pages[p].widgets.toMutableList()
-        if (j !in ws.indices) return
-        val t = ws[i]; ws[i] = ws[j]; ws[j] = t
-        pages[p] = pages[p].copy(widgets = ws)
-        save()
-    }
-
-    /** Move a widget to the previous (-1) or next (+1) page. */
+    /** Move a widget to the previous (-1) or next (+1) page, into the first spot it fits. */
     fun moveWidgetPage(id: Int, dir: Int) {
         val (p, i) = findWidget(id) ?: return
         val target = p + dir
         if (target < 0) return
         ensurePage(target)
         val w = pages[p].widgets[i]
+        val sy = w.spanY.coerceAtMost(iconRows(target))
+        val spot = findSpot(target, w.spanX, sy) ?: return
         pages[p] = pages[p].copy(widgets = pages[p].widgets.filter { it.id != id })
-        pages[target] = pages[target].copy(widgets = pages[target].widgets + w)
+        pages[target] = pages[target].copy(widgets = pages[target].widgets + w.copy(col = spot.first, row = spot.second, spanY = sy))
         spill(target); compact(); save()
     }
 
@@ -713,7 +763,9 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         o.put("pages", JSONArray(pages.map { p ->
             JSONObject()
                 .put("items", JSONArray(p.items))
-                .put("widgets", JSONArray(p.widgets.map { JSONObject().put("id", it.id).put("rows", it.rows).put("half", it.half) }))
+                .put("widgets", JSONArray(p.widgets.map {
+                    JSONObject().put("id", it.id).put("col", it.col).put("row", it.row).put("spanX", it.spanX).put("spanY", it.spanY)
+                }))
         }))
         o.put("folders", JSONObject().apply {
             folders.forEach { (id, f) -> put(id, JSONObject().put("name", f.name).put("apps", JSONArray(f.apps))) }
@@ -744,7 +796,13 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
                     pages.add(Page(
                         widgets = List(w.length()) {
                             val o2 = w.getJSONObject(it)
-                            WidgetItem(o2.getInt("id"), o2.getInt("rows"), o2.optBoolean("half", false))
+                            if (o2.has("spanX")) {
+                                WidgetItem(o2.getInt("id"), o2.optInt("col"), o2.optInt("row"), o2.optInt("spanX", 4), o2.optInt("spanY", 2))
+                            } else {
+                                // older layouts: full or half width, stacked at the top (placed by fixWidgets)
+                                val half = o2.optBoolean("half", false)
+                                WidgetItem(o2.getInt("id"), 0, 0, if (half) (columns + 1) / 2 else columns, o2.optInt("rows", 2))
+                            }
                         },
                         items = List(it2.length()) { it2.getString(it) },
                     ))

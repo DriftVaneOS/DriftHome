@@ -1,5 +1,10 @@
 package org.driftvane.launcher.ui
 
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -242,16 +247,44 @@ private fun Cluster(apps: List<AppEntry>, onOpen: () -> Unit) {
     }
 }
 
-/** Full-screen list of one category, opened from a 2x2 card. */
+/** All apps of one category, opened from a 2x2 card. Tap opens the app, hold shows its menu. */
 @Composable
 fun CategorySheet(model: LauncherModel, title: String, handler: ItemHandler) {
     val apps = model.categories().firstOrNull { it.first == title }?.second ?: emptyList()
     Column(
-        Modifier.fillMaxWidth().padding(16.dp).glass(30.dp, 0.9f).padding(18.dp)
+        Modifier.fillMaxWidth().padding(16.dp).heightIn(max = 620.dp)
+            .glass(30.dp, 0.9f).swallowTaps().padding(18.dp)
     ) {
         Text(title, color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.W700)
         Spacer(Modifier.height(12.dp))
-        IconRows(apps, 4, 54f, model, handler)
+        Column(Modifier.verticalScroll(rememberScrollState())) {
+            apps.chunked(4).forEach { row ->
+                Row(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                    row.forEach { app ->
+                        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { LibIcon(app, 54f, true, handler, model) }
+                    }
+                    repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun SheetIcon(app: AppEntry, model: LauncherModel, handler: ItemHandler) {
+    val interaction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val bounds = remember { arrayOf(Rect.Zero) }
+    Box(
+        Modifier.combinedClickable(
+            interactionSource = interaction,
+            indication = null,
+            onClick = { handler.tap(app.key, bounds[0]) },
+            onLongClick = { handler.menu(app.key, bounds[0]) },
+        )
+    ) {
+        HomeItem(model, app.key, 54f, true, pressed, onBounds = { bounds[0] = it })
     }
 }
 
