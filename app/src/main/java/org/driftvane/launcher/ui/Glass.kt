@@ -71,11 +71,40 @@ object IconShapes {
 /** The icon shape everything on the home screen uses; set once at the root. */
 val LocalIconShape = staticCompositionLocalOf<Shape> { Squircle }
 
+/** Outline drawn around icon tiles (the Drift outline theme), or null for none. */
+val LocalIconBorder = staticCompositionLocalOf<Color?> { null }
+
+/** The current accent, so plain (non-composable) modifiers can tint surfaces with it. */
+object Tone { var accent: Color = Color(0xFFFF4D5E) }
+
+private fun mix(a: Color, b: Color, t: Float) = Color(
+    a.red + (b.red - a.red) * t, a.green + (b.green - a.green) * t, a.blue + (b.blue - a.blue) * t, 1f,
+)
+
 /**
- * Liquid glass: a frosted tint, a bright specular sheen from the top-left, and a rim of light
- * that fades around the edge. [alpha] is how strong the frost is (0.4 light … 0.9 strong).
+ * DriftHome surface: solid, dark and lightly tinted with the accent, with a hairline edge in
+ * the accent. (Named glass for history; there's no blur or sheen any more.)
  */
 fun Modifier.glass(radius: Dp = 28.dp, alpha: Float = 0.72f): Modifier {
+    val shape = RoundedCornerShape(radius)
+    val a = alpha.coerceIn(0.2f, 1f)
+    return this
+        .clip(shape)
+        .background(mix(Color(0xFF141116), Tone.accent, 0.10f).copy(alpha = 0.78f + 0.2f * a))
+        .border(1.dp, Tone.accent.copy(alpha = 0.22f), shape)
+}
+
+/** Fully opaque card (App Library categories): no see-through at all. */
+fun Modifier.solidCard(radius: Dp = 24.dp): Modifier {
+    val shape = RoundedCornerShape(radius)
+    return this
+        .clip(shape)
+        .background(mix(Color(0xFF17151B), Tone.accent, 0.12f))
+        .border(1.dp, Tone.accent.copy(alpha = 0.18f), shape)
+}
+
+@Suppress("unused")
+private fun Modifier.oldGlass(radius: Dp = 28.dp, alpha: Float = 0.72f): Modifier {
     val shape = RoundedCornerShape(radius)
     val a = alpha.coerceIn(0.2f, 1f)
     return this
@@ -115,6 +144,15 @@ fun Modifier.glass(radius: Dp = 28.dp, alpha: Float = 0.72f): Modifier {
 
 /** Same liquid glass on any shape (used for icon tiles and folders). */
 fun Modifier.glassShape(shape: Shape, alpha: Float = 0.6f): Modifier {
+    val a = alpha.coerceIn(0.2f, 1f)
+    return this
+        .clip(shape)
+        .background(mix(Color(0xFF141116), Tone.accent, 0.18f).copy(alpha = 0.8f + 0.2f * a))
+        .border(1.2.dp, Tone.accent.copy(alpha = 0.45f), shape)
+}
+
+@Suppress("unused")
+private fun Modifier.oldGlassShape(shape: Shape, alpha: Float = 0.6f): Modifier {
     val a = alpha.coerceIn(0.2f, 1f)
     return this
         .clip(shape)

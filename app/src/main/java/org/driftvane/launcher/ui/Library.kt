@@ -197,7 +197,10 @@ private fun ListRow(app: AppEntry, model: LauncherModel, handler: ItemHandler) {
     }
 }
 
-/** 2x2 category card: three apps you can tap, plus a cluster that opens the whole category. */
+/**
+ * Category card: a solid card with the category name and count, and the first apps in a 2x2
+ * grid. Tap an app to open it; tap anywhere else on the card (or the +N tile) to see them all.
+ */
 @Composable
 private fun CategoryCard(
     title: String,
@@ -207,29 +210,37 @@ private fun CategoryCard(
     modifier: Modifier,
     onOpen: () -> Unit,
 ) {
-    Column(modifier) {
-        Column(
-            Modifier.fillMaxWidth().aspectRatio(1f).glass(26.dp, model.glassStrength).padding(12.dp),
-            verticalArrangement = Arrangement.SpaceEvenly,
-        ) {
-            val big = if (apps.size <= 4) apps else apps.take(3)
-            val rest = if (apps.size <= 4) emptyList() else apps.drop(3)
-            listOf(0, 1).forEach { r ->
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    listOf(0, 1).forEach { c ->
-                        val i = r * 2 + c
-                        Box(Modifier.size(58.dp), contentAlignment = Alignment.Center) {
-                            when {
-                                i < big.size -> LibIcon(big[i], 54f, false, handler, model)
-                                i == 3 && rest.isNotEmpty() -> Cluster(rest, onOpen)
-                            }
+    val accent = model.accent
+    val showAll = apps.size > 4
+    val shown = if (showAll) apps.take(3) else apps.take(4)
+    Column(
+        modifier.solidCard(24.dp)
+            .clickable(remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null) { onOpen() }
+            .padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 14.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(title, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.W600,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Text("${apps.size}", color = accent, fontSize = 13.sp, fontWeight = FontWeight.W600)
+        }
+        Spacer(Modifier.height(10.dp))
+        listOf(0, 1).forEach { r ->
+            Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+                listOf(0, 1).forEach { c ->
+                    val i = r * 2 + c
+                    Box(Modifier.size(56.dp), contentAlignment = Alignment.Center) {
+                        when {
+                            i < shown.size -> LibIcon(shown[i], 50f, false, handler, model)
+                            i == 3 && showAll -> Box(
+                                Modifier.size(50.dp).clip(LocalIconShape.current).background(accent.copy(alpha = 0.22f))
+                                    .clickable { onOpen() },
+                                contentAlignment = Alignment.Center,
+                            ) { Text("+${apps.size - 3}", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.W600) }
                         }
                     }
                 }
             }
         }
-        Text(title, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.W600,
-            modifier = Modifier.padding(top = 6.dp, start = 6.dp))
     }
 }
 
@@ -253,7 +264,7 @@ fun CategorySheet(model: LauncherModel, title: String, handler: ItemHandler) {
     val apps = model.categories().firstOrNull { it.first == title }?.second ?: emptyList()
     Column(
         Modifier.fillMaxWidth().padding(16.dp).heightIn(max = 620.dp)
-            .glass(30.dp, 0.9f).swallowTaps().padding(18.dp)
+            .solidCard(28.dp).swallowTaps().padding(18.dp)
     ) {
         Text(title, color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.W700)
         Spacer(Modifier.height(12.dp))

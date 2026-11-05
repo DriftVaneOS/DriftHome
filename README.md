@@ -2,6 +2,17 @@
 
 The DriftVaneOS launcher. Pages of apps, a floating glass dock, folders, widgets and a smart App Library, styled to match AlexLMP.
 
+## v0.5: Bold clock
+
+- New look: a huge two-tone clock on the first page (hours in your accent, minutes softer),
+  date and battery above it, and what's playing below it (tap it to open the player).
+  First time: tap the line under the clock and allow notification access for DriftHome.
+- Drift outline icons: accent symbols on dark tiles with an accent outline, no labels.
+- Apps sit low on the first page, under the clock, where your thumb reaches.
+- Line dock: no box, just a thin accent line above the dock icons.
+- App Library: solid category cards (no see-through). Tap an app to open it, tap the card
+  or the +N tile to see the whole category.
+
 ## v0.4
 
 - **Widgets live on the grid:** in edit mode drag a widget to any spot (icons flow around it),

@@ -112,6 +112,7 @@ fun HomeScreen(
     val density = LocalDensity.current
     val screenW = with(density) { LocalConfiguration.current.screenWidthDp.dp.toPx() }
     val statusTop = WindowInsets.statusBars.getTop(density)
+    Tone.accent = model.accent
     var pagerH by remember { mutableIntStateOf(0) }
     var bottomBarH by remember { mutableIntStateOf(0) }
     val bottomBarDp = with(density) { bottomBarH.toDp() }
@@ -321,6 +322,7 @@ fun HomeScreen(
 
     CompositionLocalProvider(
         LocalIconShape provides IconShapes.shape(model.iconShape),
+        LocalIconBorder provides (if (model.iconTheme == org.driftvane.launcher.IconTheme.OUTLINE) soften(model.accent, 0.35f).copy(alpha = 0.9f) else null),
         LocalResumeTick provides resumed,
     ) {
     Box(Modifier.fillMaxSize()) {

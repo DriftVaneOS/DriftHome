@@ -107,8 +107,8 @@ fun HomePage(
     val p = model.pages.getOrNull(page) ?: return
     Column(Modifier.fillMaxWidth()) {
         if (page == 0 && model.showGlance) {
-            Box(Modifier.fillMaxWidth().height(cellH * 2).padding(horizontal = 16.dp, vertical = 6.dp)) {
-                GlanceCard(model, Modifier.fillMaxSize())
+            Box(Modifier.fillMaxWidth().height(cellH * 3).padding(vertical = 6.dp)) {
+                BoldClock(model, Modifier.align(Alignment.TopStart))
                 if (editMode) RemoveBadge(Modifier.align(Alignment.TopStart).offset((-6).dp, (-6).dp)) {
                     model.changeGlance(false)
                 }

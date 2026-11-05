@@ -108,7 +108,13 @@ class HomeActivity : ComponentActivity(), HomeActions {
         } else null
         runCatching { la.startMainActivity(app.component, app.user, r, opts) }.onFailure {
             // fallback: plain launch without the zoom animation
-            runCatching { la.startMainActivity(app.component, app.user, null, null) }
+            runCatching { la.startMainActivity(app.component, app.user, null, null) }.onFailure {
+                // last resort: the app's normal launch intent
+                runCatching {
+                    packageManager.getLaunchIntentForPackage(app.component.packageName)
+                        ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)?.let { startActivity(it) }
+                }
+            }
         }
         model.recordLaunch(key)
     }

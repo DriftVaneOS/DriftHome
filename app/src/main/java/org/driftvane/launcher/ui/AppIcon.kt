@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -58,10 +59,12 @@ val LabelStyle = labelStyle()
 @Composable
 fun AppTile(app: AppEntry, size: Float, modifier: Modifier = Modifier) {
     val shape = LocalIconShape.current
+    val edge = LocalIconBorder.current
     Box(
         modifier.size(size.dp)
             .shadow((size * 0.06f).dp, shape, ambientColor = Color(0x33000000), spotColor = Color(0x59000000))
             .clip(shape)
+            .then(if (edge != null) Modifier.border(1.5.dp, edge, shape) else Modifier)
     ) {
         Image(app.icon, contentDescription = app.label, modifier = Modifier.fillMaxSize())
     }
