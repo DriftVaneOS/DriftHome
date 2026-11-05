@@ -92,7 +92,7 @@ fun SettingsPage(model: LauncherModel, onClose: () -> Unit) {
                         item {
                             Group {
                                 NavRow("Icons", "Shape, theme, size", G.SHAPE, Color(0xFF8CD0F0)) { page = SPage.ICONS }
-                                NavRow("Home screen", "Grid, clock card, page animation", G.GRID, Color(0xFFFF8A3D)) { page = SPage.HOME }
+                                NavRow("Home screen", "Grid, clock card, page dots", G.GRID, Color(0xFFFF8A3D)) { page = SPage.HOME }
                                 NavRow("Dock", dockName(model.dockStyle), G.DOCK, Color(0xFF7CD992)) { page = SPage.DOCK }
                                 NavRow("App Library", libraryName(model.libraryStyle), G.LIBRARY, Color(0xFFF09CE2), last = true) { page = SPage.LIBRARY }
                             }
@@ -119,7 +119,7 @@ fun SettingsPage(model: LauncherModel, onClose: () -> Unit) {
                             Group { ActionRow("Reset home screen layout", Color(0xFFFF6B78)) { model.resetLayout(); onClose() } }
                         }
                         item {
-                            Text("DriftHome 0.3 · made for DriftVaneOS", color = Color(0x80FFFFFF), fontSize = 12.sp,
+                            Text("DriftHome 0.3.1 · made for DriftVaneOS", color = Color(0x80FFFFFF), fontSize = 12.sp,
                                 fontWeight = FontWeight.W600, modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp),
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                         }
@@ -162,13 +162,6 @@ fun SettingsPage(model: LauncherModel, onClose: () -> Unit) {
                             Group {
                                 ToggleRow("Clock & battery card", model.showGlance, model.accent) { model.changeGlance(it) }
                                 ToggleRow("Page dots", model.showDots, model.accent, last = true) { model.changeDots(it) }
-                            }
-                        }
-                        item {
-                            Group(title = "Page animation") {
-                                listOf("depth" to "Depth", "cube" to "Cube", "fade" to "Fade", "slide" to "Slide").forEachIndexed { i, (id, n) ->
-                                    CheckRow(n, transitionHint(id), model.pageTransition == id, model.accent, last = i == 3) { model.changeTransition(id) }
-                                }
                             }
                         }
                     }
@@ -331,12 +324,6 @@ private fun themeHint(id: String) = when (id) {
     IconTheme.GLASS -> "App symbols on liquid glass"
     IconTheme.MONO -> "Clean white symbols on dark tiles"
     else -> "Each app's own icon"
-}
-private fun transitionHint(id: String) = when (id) {
-    "depth" -> "Pages sink back as you swipe"
-    "cube" -> "Pages turn like a cube"
-    "fade" -> "Pages cross-fade"
-    else -> "Classic slide"
 }
 
 @Composable

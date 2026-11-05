@@ -139,8 +139,6 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         private set
     var iconTheme by mutableStateOf(prefs.getString("icon_theme", IconTheme.ORIGINAL)!!)
         private set
-    var pageTransition by mutableStateOf(prefs.getString("page_transition", "depth")!!)
-        private set
     var dockStyle by mutableStateOf(prefs.getString("dock_style", "glass")!!)
         private set
     var haptics by mutableStateOf(prefs.getBoolean("haptics", true))
@@ -169,7 +167,6 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
     fun changeGlass(v: Float) { glassStrength = v; prefs.edit().putFloat("glass", v).apply() }
     fun changeShape(v: String) { iconShape = v; prefs.edit().putString("icon_shape", v).apply() }
     fun changeTheme(v: String) { iconTheme = v; prefs.edit().putString("icon_theme", v).apply(); reload() }
-    fun changeTransition(v: String) { pageTransition = v; prefs.edit().putString("page_transition", v).apply() }
     fun changeDockStyle(v: String) { dockStyle = v; prefs.edit().putString("dock_style", v).apply() }
     fun changeHaptics(v: Boolean) { haptics = v; prefs.edit().putBoolean("haptics", v).apply() }
     fun changeLock(v: Boolean) { lockLayout = v; prefs.edit().putBoolean("lock_layout", v).apply() }

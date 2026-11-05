@@ -44,7 +44,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.ui.util.lerp
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -327,35 +326,9 @@ fun HomeScreen(
                     beyondViewportPageCount = 2,
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                 ) { page ->
-                    val pageFx = Modifier.graphicsLayer {
-                        val o = (pager.currentPage - page + pager.currentPageOffsetFraction).coerceIn(-1f, 1f)
-                        val a = abs(o)
-                        when (model.pageTransition) {
-                            "depth" -> {
-                                // the page you leave sinks back and fades; the new one slides in on top
-                                if (o > 0f) {
-                                    translationX = size.width * o * 0.72f
-                                    val sc = lerp(1f, 0.86f, a); scaleX = sc; scaleY = sc
-                                    alpha = 1f - a * 0.85f
-                                }
-                            }
-                            "cube" -> {
-                                cameraDistance = 14f * this.density
-                                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(if (o > 0f) 1f else 0f, 0.5f)
-                                rotationY = -o * 70f
-                                alpha = 1f - a * 0.3f
-                            }
-                            "fade" -> {
-                                translationX = size.width * o
-                                alpha = 1f - a
-                                val sc = lerp(1f, 0.94f, a); scaleX = sc; scaleY = sc
-                            }
-                            else -> Unit
-                        }
-                    }
                     if (page < model.pages.size) {
                         val pageTopLeft = remember { arrayOf(Offset.Zero) }
-                        Box(Modifier.fillMaxSize().then(pageFx).onGloballyPositioned { pageTopLeft[0] = it.positionInRoot() }) {
+                        Box(Modifier.fillMaxSize().onGloballyPositioned { pageTopLeft[0] = it.positionInRoot() }) {
                             // empty space: long-press for the home menu, tap to leave edit mode
                             Box(
                                 Modifier.matchParentSize().pointerInput(editMode) {
@@ -375,7 +348,7 @@ fun HomeScreen(
                             }
                         }
                     } else {
-                        Box(Modifier.fillMaxSize().then(pageFx).statusBarsPadding()) {
+                        Box(Modifier.fillMaxSize().statusBarsPadding()) {
                             AppLibrary(model, handler,
                                 onSearch = { searchOpen = true },
                                 onSettings = { settingsOpen = true },

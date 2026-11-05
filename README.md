@@ -5,7 +5,7 @@ The DriftVaneOS launcher. Pages of apps, a floating glass dock, folders, widgets
 ## v0.3
 
 - **Liquid glass everywhere:** dock, folders, menus and settings use a frosted glass look with a bright rim and sheen.
-- **Fluid motion:** springy press squish on icons, menus that grow out of the icon you held, icons cascading in when you come home, and four page animations (Depth, Cube, Fade, Slide).
+- **Fluid motion:** springy press squish on icons, menus that grow out of the icon you held and icons cascading in when you come home. Pages swipe the classic way.
 - **New long-press menus:** the icon lifts over a blurred home screen, with quick buttons (Edit, Info, Delete), the app's own shortcuts, Add to dock, Remove and Hide app.
 - **Widgets:** in edit mode, drag a widget up or down to move it, drag it sideways to send it to another page, drag the bottom handle to resize it, and tap ⇆ to make it half width (two side by side).
 - **Icon shapes:** Squircle, Rounded, Pebble, Teardrop, Square and Circle.
