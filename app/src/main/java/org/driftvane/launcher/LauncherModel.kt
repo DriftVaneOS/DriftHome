@@ -9,6 +9,11 @@ import android.content.pm.LauncherApps
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.LinearGradient
+import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffColorFilter
+import android.graphics.Shader
 import android.graphics.drawable.AdaptiveIconDrawable
 import android.graphics.drawable.Drawable
 import android.net.Uri
@@ -23,6 +28,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.toArgb
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -41,7 +47,32 @@ data class AppEntry(
 )
 
 data class Folder(val name: String, val apps: List<String>)
-data class WidgetItem(val id: Int, val rows: Int)
+data class AppShortcut(val id: String, val label: String, val pkg: String, val user: UserHandle)
+
+object IconTheme {
+    const val ORIGINAL = "original"
+    const val THEMED = "themed"
+    const val LIGHT = "light"
+    const val GLASS = "glass"
+    const val MONO = "mono"
+    val all = listOf(ORIGINAL to "Original", THEMED to "Themed", LIGHT to "Light", GLASS to "Liquid glass", MONO to "Mono")
+}
+
+/** Rows a page's widgets take: half-width widgets sit side by side in pairs. */
+fun widgetBlockRows(ws: List<WidgetItem>): Int {
+    var total = 0
+    var i = 0
+    while (i < ws.size) {
+        val w = ws[i]
+        if (w.half && i + 1 < ws.size && ws[i + 1].half) {
+            total += maxOf(w.rows, ws[i + 1].rows); i += 2
+        } else {
+            total += w.rows; i++
+        }
+    }
+    return total
+}
+data class WidgetItem(val id: Int, val rows: Int, val half: Boolean = false)
 data class Page(val widgets: List<WidgetItem> = emptyList(), val items: List<String> = emptyList())
 
 /** Where a dragged item came from. */
@@ -104,12 +135,31 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         private set
     var glassStrength by mutableStateOf(prefs.getFloat("glass", 0.72f))
         private set
+    var iconShape by mutableStateOf(prefs.getString("icon_shape", "squircle")!!)
+        private set
+    var iconTheme by mutableStateOf(prefs.getString("icon_theme", IconTheme.ORIGINAL)!!)
+        private set
+    var pageTransition by mutableStateOf(prefs.getString("page_transition", "depth")!!)
+        private set
+    var dockStyle by mutableStateOf(prefs.getString("dock_style", "glass")!!)
+        private set
+    var haptics by mutableStateOf(prefs.getBoolean("haptics", true))
+        private set
+    var lockLayout by mutableStateOf(prefs.getBoolean("lock_layout", false))
+        private set
+    var labelSize by mutableStateOf(prefs.getFloat("label_size", 12f))
+        private set
+    var hiddenApps by mutableStateOf(prefs.getStringSet("hidden_apps", emptySet())!!.toSet())
+        private set
 
     val accent: Color get() = Accents[accentIndex.coerceIn(0, Accents.lastIndex)]
     val rows = 6
     private val glanceRows = 2
 
-    fun changeAccent(i: Int) { accentIndex = i; prefs.edit().putInt("accent", i).apply() }
+    fun changeAccent(i: Int) {
+        accentIndex = i; prefs.edit().putInt("accent", i).apply()
+        if (iconTheme == IconTheme.THEMED || iconTheme == IconTheme.LIGHT) reload()
+    }
     fun changeLabels(v: Boolean) { showLabels = v; prefs.edit().putBoolean("labels", v).apply() }
     fun changeIconScale(v: Float) { iconScale = v; prefs.edit().putFloat("icon_scale", v).apply() }
     fun changeDots(v: Boolean) { showDots = v; prefs.edit().putBoolean("dots", v).apply() }
@@ -117,6 +167,29 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
     fun changeLibrary(v: String) { libraryStyle = v; prefs.edit().putString("library", v).apply() }
     fun changeSwipeDown(v: String) { swipeDown = v; prefs.edit().putString("swipe_down", v).apply() }
     fun changeGlass(v: Float) { glassStrength = v; prefs.edit().putFloat("glass", v).apply() }
+    fun changeShape(v: String) { iconShape = v; prefs.edit().putString("icon_shape", v).apply() }
+    fun changeTheme(v: String) { iconTheme = v; prefs.edit().putString("icon_theme", v).apply(); reload() }
+    fun changeTransition(v: String) { pageTransition = v; prefs.edit().putString("page_transition", v).apply() }
+    fun changeDockStyle(v: String) { dockStyle = v; prefs.edit().putString("dock_style", v).apply() }
+    fun changeHaptics(v: Boolean) { haptics = v; prefs.edit().putBoolean("haptics", v).apply() }
+    fun changeLock(v: Boolean) { lockLayout = v; prefs.edit().putBoolean("lock_layout", v).apply() }
+    fun changeLabelSize(v: Float) { labelSize = v; prefs.edit().putFloat("label_size", v).apply() }
+
+    fun setHidden(key: String, hidden: Boolean) {
+        hiddenApps = if (hidden) hiddenApps + key else hiddenApps - key
+        prefs.edit().putStringSet("hidden_apps", hiddenApps).apply()
+        if (hidden) {
+            dock.remove(key)
+            for (i in pages.indices) pages[i] = pages[i].copy(items = pages[i].items - key)
+            for (id in folders.keys.toList()) folders[id]?.let { f -> folders[id] = f.copy(apps = f.apps - key) }
+            cleanupFolders(); compact(); save()
+        } else {
+            addToHome(key)
+        }
+    }
+
+    /** Apps that aren't hidden (library, search, suggestions). */
+    fun visibleApps(): List<AppEntry> = apps.values.filter { it.key !in hiddenApps }
     fun changeColumns(v: Int) {
         columns = v; prefs.edit().putInt("columns", v).apply(); reflowAll()
     }
@@ -127,7 +200,7 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
     /** Grid rows left for icons on a page after the glance card and widgets. */
     fun iconRows(page: Int): Int {
         val used = (if (page == 0 && showGlance) glanceRows else 0) +
-            (pages.getOrNull(page)?.widgets?.sumOf { it.rows } ?: 0)
+            widgetBlockRows(pages.getOrNull(page)?.widgets ?: emptyList())
         return (rows - used).coerceAtLeast(0)
     }
     fun capacity(page: Int) = columns * iconRows(page)
@@ -179,17 +252,75 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
     private fun renderTile(d: Drawable, s: Int): Bitmap {
         val bmp = Bitmap.createBitmap(s, s, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
-        if (d is AdaptiveIconDrawable) {
-            val inset = s / 4
-            d.background?.let { it.setBounds(-inset, -inset, s + inset, s + inset); it.draw(c) }
-            d.foreground?.let { it.setBounds(-inset, -inset, s + inset, s + inset); it.draw(c) }
-        } else {
-            c.drawColor(0xFF2A2733.toInt())
-            val pad = (s * 0.16f).toInt()
-            d.setBounds(pad, pad, s - pad, s - pad)
-            d.draw(c)
+        val inset = s / 4
+        val accent = accent.toArgb()
+        fun full(x: Drawable) { x.setBounds(-inset, -inset, s + inset, s + inset); x.draw(c) }
+        fun padded(x: Drawable) { val p = (s * 0.18f).toInt(); x.setBounds(p, p, s - p, s - p); x.draw(c) }
+        /** silhouette of the icon in one color (monochrome layer when the app has one) */
+        fun mono(color: Int) {
+            if (d is AdaptiveIconDrawable) {
+                val m = d.monochrome?.mutate()
+                if (m != null) { m.setTint(color); full(m); return }
+                d.foreground?.mutate()?.let { it.colorFilter = PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN); full(it); it.colorFilter = null }
+            } else {
+                val x = d.mutate(); x.colorFilter = PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN); padded(x); x.colorFilter = null
+            }
+        }
+        when (iconTheme) {
+            IconTheme.THEMED -> { c.drawColor(0xFF23202C.toInt()); mono(lighten(accent)) }
+            IconTheme.LIGHT -> { c.drawColor(0xFFF3F0F6.toInt()); mono(darken(accent)) }
+            IconTheme.MONO -> { c.drawColor(0xFF19181D.toInt()); mono(0xFFF2F2F2.toInt()) }
+            IconTheme.GLASS -> {
+                val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+                paint.shader = LinearGradient(0f, 0f, 0f, s.toFloat(), 0x66FFFFFF, 0x22FFFFFF, Shader.TileMode.CLAMP)
+                c.drawRect(0f, 0f, s.toFloat(), s.toFloat(), paint)
+                if (d is AdaptiveIconDrawable) d.foreground?.let { full(it) } else padded(d)
+            }
+            else -> {
+                if (d is AdaptiveIconDrawable) {
+                    d.background?.let { full(it) }
+                    d.foreground?.let { full(it) }
+                } else {
+                    c.drawColor(0xFF2A2733.toInt())
+                    padded(d)
+                }
+            }
         }
         return bmp
+    }
+
+    private fun lighten(c: Int): Int {
+        val r = (android.graphics.Color.red(c) + 255 * 2) / 3
+        val g = (android.graphics.Color.green(c) + 255 * 2) / 3
+        val b = (android.graphics.Color.blue(c) + 255 * 2) / 3
+        return android.graphics.Color.rgb(r, g, b)
+    }
+
+    private fun darken(c: Int): Int = android.graphics.Color.rgb(
+        android.graphics.Color.red(c) * 2 / 3, android.graphics.Color.green(c) * 2 / 3, android.graphics.Color.blue(c) * 2 / 3,
+    )
+
+    // ---- app shortcuts (long-press menu) ----
+    fun shortcutsFor(key: String): List<AppShortcut> = runCatching {
+        val app = apps[key] ?: return emptyList()
+        if (!launcherApps.hasShortcutHostPermission()) return emptyList()
+        val q = LauncherApps.ShortcutQuery()
+            .setPackage(app.component.packageName)
+            .setActivity(app.component)
+            .setQueryFlags(
+                LauncherApps.ShortcutQuery.FLAG_MATCH_DYNAMIC or
+                    LauncherApps.ShortcutQuery.FLAG_MATCH_MANIFEST or
+                    LauncherApps.ShortcutQuery.FLAG_MATCH_PINNED
+            )
+        (launcherApps.getShortcuts(q, app.user) ?: emptyList())
+            .sortedBy { it.rank }
+            .take(4)
+            .map { AppShortcut(it.id, (it.shortLabel ?: it.longLabel ?: "").toString(), it.`package`, it.userHandle) }
+            .filter { it.label.isNotBlank() }
+    }.getOrDefault(emptyList())
+
+    fun startShortcut(sc: AppShortcut) {
+        runCatching { launcherApps.startShortcut(sc.pkg, sc.id, null, null, sc.user) }
     }
 
     // ---- launch stats for Suggestions ----
@@ -198,11 +329,11 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         prefs.edit().putInt("launch_$key", n + 1).apply()
     }
     fun suggestions(n: Int = 8): List<AppEntry> =
-        apps.values.sortedByDescending { prefs.getInt("launch_${it.key}", 0) }
+        visibleApps().sortedByDescending { prefs.getInt("launch_${it.key}", 0) }
             .filter { prefs.getInt("launch_${it.key}", 0) > 0 }.take(n)
     fun recentlyAdded(n: Int = 8): List<AppEntry> {
         val week = System.currentTimeMillis() - 7L * 24 * 3600 * 1000
-        return apps.values.filter { it.installedAt > week && !isSystemish(it) }
+        return visibleApps().filter { it.installedAt > week && !isSystemish(it) }
             .sortedByDescending { it.installedAt }.take(n)
     }
 
@@ -243,7 +374,7 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
             }
             cleanupFolders()
             val placed = placedApps()
-            val hidden = hiddenFromHome()
+            val hidden = hiddenFromHome() + hiddenApps
             apps.keys.filter { it !in placed && it !in hidden }.forEach { append(it) }
         }
         if (pages.isEmpty()) pages.add(Page())
@@ -438,6 +569,53 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
     fun ensurePage(i: Int) { while (pages.size <= i) pages.add(Page()) }
     fun tidy() { cleanupFolders(); compact(); save() }
 
+    private fun findWidget(id: Int): Pair<Int, Int>? {
+        for (p in pages.indices) {
+            val i = pages[p].widgets.indexOfFirst { it.id == id }
+            if (i >= 0) return p to i
+        }
+        return null
+    }
+
+    fun resizeWidget(id: Int, rows: Int) {
+        val (p, i) = findWidget(id) ?: return
+        val ws = pages[p].widgets.toMutableList()
+        ws[i] = ws[i].copy(rows = rows.coerceIn(1, 4))
+        pages[p] = pages[p].copy(widgets = ws)
+        spill(p); save()
+    }
+
+    fun toggleWidgetHalf(id: Int) {
+        val (p, i) = findWidget(id) ?: return
+        val ws = pages[p].widgets.toMutableList()
+        ws[i] = ws[i].copy(half = !ws[i].half)
+        pages[p] = pages[p].copy(widgets = ws)
+        spill(p); save()
+    }
+
+    /** Move a widget up (-1) or down (+1) among the widgets on its page. */
+    fun moveWidget(id: Int, dir: Int) {
+        val (p, i) = findWidget(id) ?: return
+        val j = i + dir
+        val ws = pages[p].widgets.toMutableList()
+        if (j !in ws.indices) return
+        val t = ws[i]; ws[i] = ws[j]; ws[j] = t
+        pages[p] = pages[p].copy(widgets = ws)
+        save()
+    }
+
+    /** Move a widget to the previous (-1) or next (+1) page. */
+    fun moveWidgetPage(id: Int, dir: Int) {
+        val (p, i) = findWidget(id) ?: return
+        val target = p + dir
+        if (target < 0) return
+        ensurePage(target)
+        val w = pages[p].widgets[i]
+        pages[p] = pages[p].copy(widgets = pages[p].widgets.filter { it.id != id })
+        pages[target] = pages[target].copy(widgets = pages[target].widgets + w)
+        spill(target); compact(); save()
+    }
+
     fun allWidgetIds(): List<Int> = pages.flatMap { p -> p.widgets.map { it.id } }
 
     fun resetLayout() {
@@ -453,7 +631,7 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         o.put("pages", JSONArray(pages.map { p ->
             JSONObject()
                 .put("items", JSONArray(p.items))
-                .put("widgets", JSONArray(p.widgets.map { JSONObject().put("id", it.id).put("rows", it.rows) }))
+                .put("widgets", JSONArray(p.widgets.map { JSONObject().put("id", it.id).put("rows", it.rows).put("half", it.half) }))
         }))
         o.put("folders", JSONObject().apply {
             folders.forEach { (id, f) -> put(id, JSONObject().put("name", f.name).put("apps", JSONArray(f.apps))) }
@@ -482,7 +660,10 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
                     val it2 = e.getJSONArray("items")
                     val w = e.optJSONArray("widgets") ?: JSONArray()
                     pages.add(Page(
-                        widgets = List(w.length()) { WidgetItem(w.getJSONObject(it).getInt("id"), w.getJSONObject(it).getInt("rows")) },
+                        widgets = List(w.length()) {
+                            val o2 = w.getJSONObject(it)
+                            WidgetItem(o2.getInt("id"), o2.getInt("rows"), o2.optBoolean("half", false))
+                        },
                         items = List(it2.length()) { it2.getString(it) },
                     ))
                 }
@@ -525,7 +706,7 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
     fun categories(): List<Pair<String, List<AppEntry>>> {
         val order = listOf("Social", "Music", "Photo & Video", "Games", "Productivity", "Browsers",
             "Money & Shopping", "Travel & News", "More", "Utilities")
-        return apps.values.sortedBy { it.label.lowercase() }.groupBy(::categoryOf).toList()
+        return visibleApps().sortedBy { it.label.lowercase() }.groupBy(::categoryOf).toList()
             .sortedBy { order.indexOf(it.first).let { i -> if (i < 0) 99 else i } }
     }
 }

@@ -56,7 +56,7 @@ fun LibIcon(app: AppEntry, size: Float, showLabel: Boolean, handler: ItemHandler
                 rootTopLeft = { topLeft[0] },
                 onPress = { pressed = it },
                 onTap = { handler.tap(app.key, bounds[0]) },
-                onMenu = { handler.menu(app.key) },
+                onMenu = { handler.menu(app.key, bounds[0]) },
                 onDragStart = { handler.dragStart(app.key, Source.Library, it) },
                 onDragMove = { handler.dragMove(it) },
                 onDragEnd = { handler.dragEnd() },
@@ -101,7 +101,7 @@ fun AppLibrary(
     onSettings: () -> Unit,
     onOpenCategory: (String) -> Unit,
 ) {
-    val groups = remember(model.apps.size, model.apps.keys.hashCode()) { model.categories() }
+    val groups = remember(model.apps.size, model.apps.keys.hashCode(), model.hiddenApps.size, model.iconTheme, model.accentIndex) { model.categories() }
     val accent = model.accent
     LazyColumn(
         Modifier.fillMaxSize().padding(horizontal = 16.dp),
@@ -125,7 +125,7 @@ fun AppLibrary(
 
         when (model.libraryStyle) {
             LibraryStyle.LIST -> {
-                val all = model.apps.values.sortedBy { it.label.lowercase() }
+                val all = model.visibleApps().sortedBy { it.label.lowercase() }
                 val byLetter = all.groupBy { it.label.firstOrNull()?.uppercaseChar()?.takeIf { c -> c.isLetter() } ?: '#' }
                 byLetter.forEach { (letter, apps) ->
                     item(key = "L$letter") {
@@ -257,7 +257,7 @@ fun CategorySheet(model: LauncherModel, title: String, handler: ItemHandler) {
 /** Swipe-up app drawer (when the library style is "Swipe up"). */
 @Composable
 fun AppDrawer(model: LauncherModel, handler: ItemHandler, onClose: () -> Unit, onSearch: () -> Unit) {
-    val all = remember(model.apps.size) { model.apps.values.sortedBy { it.label.lowercase() } }
+    val all = remember(model.apps.size, model.hiddenApps.size, model.iconTheme, model.accentIndex) { model.visibleApps().sortedBy { it.label.lowercase() } }
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         item {
             // grab handle: tap it to close (or pull the list down)

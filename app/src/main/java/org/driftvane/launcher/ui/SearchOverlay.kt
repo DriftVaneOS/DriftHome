@@ -51,10 +51,10 @@ fun SearchOverlay(model: LauncherModel, onLaunch: (String, Rect) -> Unit, onClos
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { focus.requestFocus() }
 
-    val results = remember(query, model.apps.size) {
+    val results = remember(query, model.apps.size, model.hiddenApps.size, model.iconTheme) {
         val q = query.trim().lowercase()
-        if (q.isEmpty()) model.apps.values.sortedBy { it.label.lowercase() }.take(8)
-        else model.apps.values
+        if (q.isEmpty()) model.visibleApps().sortedBy { it.label.lowercase() }.take(8)
+        else model.visibleApps()
             .filter { it.label.lowercase().contains(q) }
             .sortedBy { if (it.label.lowercase().startsWith(q)) 0 else 1 }
     }

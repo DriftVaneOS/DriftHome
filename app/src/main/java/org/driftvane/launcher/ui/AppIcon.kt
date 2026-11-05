@@ -43,44 +43,46 @@ import org.driftvane.launcher.Folder
 import org.driftvane.launcher.LauncherModel
 import org.driftvane.launcher.isFolder
 
-val LabelStyle = TextStyle(
+fun labelStyle(size: Float = 12f) = TextStyle(
     color = Color.White,
-    fontSize = 12.sp,
-    fontWeight = FontWeight.W700,
+    fontSize = size.sp,
+    fontWeight = FontWeight.W600,
     textAlign = TextAlign.Center,
-    shadow = Shadow(Color(0x99000000), Offset(0f, 2f), 6f),
+    letterSpacing = 0.1.sp,
+    shadow = Shadow(Color(0x8C000000), Offset(0f, 1.5f), 8f),
 )
 
-/** Squircle app tile, visuals only. */
+val LabelStyle = labelStyle()
+
+/** App tile in the user's chosen icon shape, with a soft drop shadow. */
 @Composable
 fun AppTile(app: AppEntry, size: Float, modifier: Modifier = Modifier) {
+    val shape = LocalIconShape.current
     Box(
         modifier.size(size.dp)
-            .shadow(10.dp, Squircle, ambientColor = Color.Black, spotColor = Color.Black)
-            .clip(Squircle)
+            .shadow((size * 0.14f).dp, shape, ambientColor = Color(0x66000000), spotColor = Color(0x99000000))
+            .clip(shape)
     ) {
         Image(app.icon, contentDescription = app.label, modifier = Modifier.fillMaxSize())
     }
 }
 
-/** Folder tile: glass squircle with a 3x3 preview of the apps inside. */
+/** Folder tile: liquid-glass tile with a 3x3 preview of the apps inside. */
 @Composable
 fun FolderTile(model: LauncherModel, folder: Folder, size: Float, modifier: Modifier = Modifier) {
+    val shape = LocalIconShape.current
     Box(
         modifier.size(size.dp)
-            .shadow(10.dp, Squircle, ambientColor = Color.Black, spotColor = Color.Black)
-            .clip(Squircle)
-            .glass(0.dp, 0.55f)
-            .padding((size * 0.12f).dp),
+            .shadow((size * 0.12f).dp, shape, ambientColor = Color(0x55000000), spotColor = Color(0x88000000))
+            .glassShape(shape, model.glassStrength)
+            .padding((size * 0.13f).dp),
     ) {
-        val mini = (size * 0.76f / 3f)
+        val mini = size * 0.74f / 3f
         Column(verticalArrangement = Arrangement.spacedBy((size * 0.02f).dp)) {
             folder.apps.take(9).chunked(3).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy((size * 0.02f).dp)) {
                     row.forEach { k ->
-                        model.apps[k]?.let { a ->
-                            Image(a.icon, null, Modifier.size(mini.dp).clip(Squircle))
-                        }
+                        model.apps[k]?.let { a -> Image(a.icon, null, Modifier.size(mini.dp).clip(shape)) }
                     }
                 }
             }
@@ -100,11 +102,14 @@ fun HomeItem(
     onBounds: (Rect) -> Unit = {},
 ) {
     val scale by animateFloatAsState(
-        if (pressed) 0.86f else 1f, spring(dampingRatio = 0.55f, stiffness = Spring.StiffnessMedium), label = "press",
+        if (pressed) 0.88f else 1f,
+        spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessMediumLow),
+        label = "press",
     )
+    val dim by animateFloatAsState(if (pressed) 0.82f else 1f, spring(stiffness = Spring.StiffnessMedium), label = "dim")
     val label = if (isFolder(key)) model.folders[key]?.name ?: "" else model.apps[key]?.label ?: ""
     Column(
-        modifier.graphicsLayer { scaleX = scale; scaleY = scale },
+        modifier.graphicsLayer { scaleX = scale; scaleY = scale; alpha = dim },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
@@ -115,8 +120,8 @@ fun HomeItem(
             model.apps[key]?.let { AppTile(it, size, tileMod) }
         }
         if (showLabel) {
-            Spacer(Modifier.height(6.dp))
-            Text(label, style = LabelStyle, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            Spacer(Modifier.height(7.dp))
+            Text(label, style = labelStyle(model.labelSize), maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.width((size + 18).dp))
         }
     }
@@ -128,7 +133,7 @@ fun TapIcon(app: AppEntry, size: Float, showLabel: Boolean, onClick: (Rect) -> U
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val bounds = remember { arrayOf(Rect.Zero) }
-    val scale by animateFloatAsState(if (pressed) 0.86f else 1f, spring(0.55f), label = "p")
+    val scale by animateFloatAsState(if (pressed) 0.88f else 1f, spring(0.5f, Spring.StiffnessMediumLow), label = "p")
     Column(
         Modifier.graphicsLayer { scaleX = scale; scaleY = scale }
             .clickable(interaction, indication = null) { onClick(bounds[0]) },
@@ -136,7 +141,7 @@ fun TapIcon(app: AppEntry, size: Float, showLabel: Boolean, onClick: (Rect) -> U
     ) {
         AppTile(app, size, Modifier.onGloballyPositioned { bounds[0] = it.boundsInWindow() })
         if (showLabel) {
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(7.dp))
             Text(app.label, style = LabelStyle, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.width((size + 18).dp))
         }

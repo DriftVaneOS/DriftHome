@@ -2,6 +2,18 @@
 
 The DriftVaneOS launcher. Pages of apps, a floating glass dock, folders, widgets and a smart App Library, styled to match AlexLMP.
 
+## v0.3
+
+- **Liquid glass everywhere:** dock, folders, menus and settings use a frosted glass look with a bright rim and sheen.
+- **Fluid motion:** springy press squish on icons, menus that grow out of the icon you held, icons cascading in when you come home, and four page animations (Depth, Cube, Fade, Slide).
+- **New long-press menus:** the icon lifts over a blurred home screen, with quick buttons (Edit, Info, Delete), the app's own shortcuts, Add to dock, Remove and Hide app.
+- **Widgets:** in edit mode, drag a widget up or down to move it, drag it sideways to send it to another page, drag the bottom handle to resize it, and tap ⇆ to make it half width (two side by side).
+- **Icon shapes:** Squircle, Rounded, Pebble, Teardrop, Square and Circle.
+- **Icon themes:** Original, Themed (accent tint), Light, Liquid glass and Mono.
+- **New Home settings:** a live preview and pages for Icons, Home screen, Dock (glass, clear or solid), App Library, Gestures & feel (haptics, lock layout), Look and Hidden apps.
+- **Crash guard:** if DriftHome crashes twice within a minute, it resets the home layout instead of crash-looping.
+- **Preview build:** `DriftHome-Preview` installs next to the built-in DriftHome so you can test before putting it in the ROM.
+
 ## v0.2
 
 - **Home pages:** squircle icons with 5 columns by default (4/5/6). The clock & battery card can be removed in edit mode or settings.

@@ -43,6 +43,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.util.lerp
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -98,7 +100,8 @@ fun HomeScreen(
     widget: @Composable (WidgetItem, Modifier) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
-    val haptics = LocalHapticFeedback.current
+    val hapticsRaw = LocalHapticFeedback.current
+    val buzz: (HapticFeedbackType) -> Unit = { t -> if (model.haptics) hapticsRaw.performHapticFeedback(t) }
     val density = LocalDensity.current
     val screenW = with(density) { LocalConfiguration.current.screenWidthDp.dp.toPx() }
     val drawerMode = model.libraryStyle == LibraryStyle.DRAWER
@@ -109,7 +112,9 @@ fun HomeScreen(
     var editMode by remember { mutableStateOf(false) }
     var searchOpen by remember { mutableStateOf(false) }
     var menuKey by remember { mutableStateOf<String?>(null) }
+    var menuAnchor by remember { mutableStateOf(Rect.Zero) }
     var homeMenu by remember { mutableStateOf(false) }
+    var homeAnchor by remember { mutableStateOf(Rect.Zero) }
     var settingsOpen by remember { mutableStateOf(false) }
     var widgetPicker by remember { mutableStateOf(false) }
     var openFolder by remember { mutableStateOf<String?>(null) }
@@ -192,12 +197,14 @@ fun HomeScreen(
                 if (isFolder(key)) openFolder = key
                 else { actions.launch(key, bounds); openFolder = null; drawerOpen = false; openCategory = null }
             }
-            override fun menu(key: String) {
-                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+            override fun menu(key: String, bounds: Rect) {
+                buzz(HapticFeedbackType.LongPress)
+                menuAnchor = bounds
                 menuKey = key
             }
             override fun dragStart(key: String, source: Source, at: Offset) {
-                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                if (model.lockLayout) return
+                buzz(HapticFeedbackType.LongPress)
                 menuKey = null; openCategory = null
                 editMode = true
                 drag.start(key, source, at)
@@ -209,7 +216,7 @@ fun HomeScreen(
                 drag.pointer = at
                 val h = hoverAt(at)
                 if (h != drag.hover) {
-                    if (h is Hover.Onto || h is Hover.Dock) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    if (h is Hover.Onto || h is Hover.Dock) buzz(HapticFeedbackType.TextHandleMove)
                     drag.hover = h
                 }
             }
@@ -266,12 +273,8 @@ fun HomeScreen(
             pager.animateScrollToPage(0, animationSpec = spring(dampingRatio = 0.85f, stiffness = 300f))
         }
     }
-    val entrance = remember { Animatable(1f) }
     val resumed by resumes.collectAsStateCompat()
-    LaunchedEffect(resumed) {
-        entrance.snapTo(0.93f)
-        entrance.animateTo(1f, spring(dampingRatio = 0.7f, stiffness = 260f))
-    }
+    LaunchedEffect(model.lockLayout) { if (model.lockLayout) editMode = false }
 
     val anyOverlay = searchOpen || menuKey != null || homeMenu || widgetPicker || openFolder != null ||
         openCategory != null || drawerOpen || settingsOpen
@@ -293,14 +296,14 @@ fun HomeScreen(
     val pull = with(density) { 90.dp.toPx() }
     val onLibrary = pager.currentPage >= model.pages.size
 
+    CompositionLocalProvider(
+        LocalIconShape provides IconShapes.shape(model.iconShape),
+        LocalResumeTick provides resumed,
+    ) {
     Box(Modifier.fillMaxSize()) {
         Box(
             Modifier.fillMaxSize()
                 .blur(blur)
-                .graphicsLayer {
-                    scaleX = entrance.value; scaleY = entrance.value
-                    alpha = (entrance.value - 0.93f) / 0.07f * 0.6f + 0.4f
-                }
                 .pointerInput(editMode, onLibrary, model.swipeDown, drawerMode) {
                     if (editMode || onLibrary) return@pointerInput
                     var dy = 0f
@@ -324,14 +327,43 @@ fun HomeScreen(
                     beyondViewportPageCount = 2,
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                 ) { page ->
+                    val pageFx = Modifier.graphicsLayer {
+                        val o = (pager.currentPage - page + pager.currentPageOffsetFraction).coerceIn(-1f, 1f)
+                        val a = abs(o)
+                        when (model.pageTransition) {
+                            "depth" -> {
+                                // the page you leave sinks back and fades; the new one slides in on top
+                                if (o > 0f) {
+                                    translationX = size.width * o * 0.72f
+                                    val sc = lerp(1f, 0.86f, a); scaleX = sc; scaleY = sc
+                                    alpha = 1f - a * 0.85f
+                                }
+                            }
+                            "cube" -> {
+                                cameraDistance = 14f * this.density
+                                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(if (o > 0f) 1f else 0f, 0.5f)
+                                rotationY = -o * 70f
+                                alpha = 1f - a * 0.3f
+                            }
+                            "fade" -> {
+                                translationX = size.width * o
+                                alpha = 1f - a
+                                val sc = lerp(1f, 0.94f, a); scaleX = sc; scaleY = sc
+                            }
+                            else -> Unit
+                        }
+                    }
                     if (page < model.pages.size) {
-                        Box(Modifier.fillMaxSize()) {
+                        val pageTopLeft = remember { arrayOf(Offset.Zero) }
+                        Box(Modifier.fillMaxSize().then(pageFx).onGloballyPositioned { pageTopLeft[0] = it.positionInRoot() }) {
                             // empty space: long-press for the home menu, tap to leave edit mode
                             Box(
                                 Modifier.matchParentSize().pointerInput(editMode) {
                                     detectTapGestures(
-                                        onLongPress = {
-                                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        onLongPress = { at ->
+                                            buzz(HapticFeedbackType.LongPress)
+                                            val p = pageTopLeft[0] + at
+                                            homeAnchor = Rect(p.x - 1f, p.y - 1f, p.x + 1f, p.y + 1f)
                                             homeMenu = true
                                         },
                                         onTap = { if (editMode) editMode = false },
@@ -343,7 +375,7 @@ fun HomeScreen(
                             }
                         }
                     } else {
-                        Box(Modifier.fillMaxSize().statusBarsPadding()) {
+                        Box(Modifier.fillMaxSize().then(pageFx).statusBarsPadding()) {
                             AppLibrary(model, handler,
                                 onSearch = { searchOpen = true },
                                 onSettings = { settingsOpen = true },
@@ -415,19 +447,21 @@ fun HomeScreen(
                     .nestedScroll(drawerScroll)
             ) { AppDrawer(model, handler, onClose = { drawerOpen = false }) { searchOpen = true } }
         }
-        Overlay(homeMenu, onDismiss = { homeMenu = false }) {
-            HomeMenu(model,
+        Overlay(homeMenu, onDismiss = { homeMenu = false }, plain = true) {
+            HomeMenu(model, homeAnchor,
                 onEdit = { homeMenu = false; editMode = true },
                 onWidgets = { homeMenu = false; widgetPicker = true },
                 onSettings = { homeMenu = false; settingsOpen = true },
                 onWallpaper = { homeMenu = false; actions.openWallpaper() })
         }
-        Overlay(menuKey != null, onDismiss = { menuKey = null }) {
+        Overlay(menuKey != null, onDismiss = { menuKey = null }, plain = true) {
             val k = menuKey
-            if (k != null) ItemMenu(model, k,
+            if (k != null) ItemMenu(model, k, menuAnchor,
                 onEdit = { menuKey = null; openFolder = null; editMode = true },
                 onInfo = { menuKey = null; actions.appInfo(k) },
                 onUninstall = { menuKey = null; actions.uninstall(k) },
+                onShortcut = { sc -> menuKey = null; model.startShortcut(sc) },
+                onOpenFolder = { menuKey = null; openFolder = k },
                 onClose = { menuKey = null })
         }
         Overlay(widgetPicker, onDismiss = { widgetPicker = false }, center = true) {
@@ -443,6 +477,7 @@ fun HomeScreen(
             exit = fadeOut() + slideOutVertically { it / 4 },
         ) { SettingsPage(model) { settingsOpen = false } }
     }
+    }
 }
 
 @Composable
@@ -451,12 +486,14 @@ private fun Overlay(
     onDismiss: (() -> Unit)? = null,
     center: Boolean = false,
     hidden: Boolean = false,
+    plain: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     AnimatedVisibility(
         visible,
-        enter = fadeIn(tween(180)) + scaleIn(initialScale = 0.94f, animationSpec = spring(dampingRatio = 0.8f, stiffness = 420f)),
-        exit = fadeOut(tween(150)) + scaleOut(targetScale = 0.96f),
+        enter = if (plain) fadeIn(tween(160))
+        else fadeIn(tween(180)) + scaleIn(initialScale = 0.94f, animationSpec = spring(dampingRatio = 0.8f, stiffness = 420f)),
+        exit = if (plain) fadeOut(tween(140)) else fadeOut(tween(150)) + scaleOut(targetScale = 0.96f),
     ) {
         if (onDismiss == null) {
             content()
@@ -509,7 +546,7 @@ private fun Dock(model: LauncherModel, editMode: Boolean, drag: DragState, handl
         Modifier.navigationBarsPadding().padding(horizontal = 14.dp).padding(bottom = 10.dp)
             .fillMaxWidth()
             .onGloballyPositioned { drag.dockBounds = it.boundsInRoot() }
-            .glass(32.dp, model.glassStrength * 0.85f)
+            .then(dockModifier(model))
             .padding(vertical = 14.dp)
             .height((size + 4).dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
@@ -533,14 +570,14 @@ private fun Dock(model: LauncherModel, editMode: Boolean, drag: DragState, handl
                             rootTopLeft = { topLeft[0] },
                             onPress = { pressed = it },
                             onTap = { handler.tap(k, bounds[0]) },
-                            onMenu = { handler.menu(k) },
+                            onMenu = { handler.menu(k, bounds[0]) },
                             onDragStart = { handler.dragStart(k, Source.Dock, it) },
                             onDragMove = { handler.dragMove(it) },
                             onDragEnd = { handler.dragEnd() },
                         )
                 ) {
                     HomeItem(model, k, size, false, pressed, onBounds = { bounds[0] = it })
-                    if (editMode && !hidden) RemoveBadge(Modifier.align(Alignment.TopStart).offset((-8).dp, (-8).dp)) {
+                    if (editMode && !hidden && !model.lockLayout) RemoveBadge(Modifier.align(Alignment.TopStart).offset((-8).dp, (-8).dp)) {
                         model.toggleDock(k)
                     }
                 }

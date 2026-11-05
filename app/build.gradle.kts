@@ -12,8 +12,9 @@ android {
         applicationId = "org.driftvane.launcher"
         minSdk = 33
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.2"
+        versionCode = 3
+        versionName = "0.3"
+        manifestPlaceholders["appLabel"] = "DriftHome"
     }
 
     buildTypes {
@@ -22,6 +23,15 @@ android {
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
             // Debug key for testing builds; the ROM build re-signs it.
             signingConfig = signingConfigs.getByName("debug")
+        }
+        // Test build that installs next to the built-in DriftHome (different package name),
+        // so you can try a new version on your phone without touching the system launcher.
+        create("preview") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".preview"
+            versionNameSuffix = "-preview"
+            manifestPlaceholders["appLabel"] = "DriftHome Preview"
+            matchingFallbacks += listOf("release")
         }
     }
     compileOptions {
