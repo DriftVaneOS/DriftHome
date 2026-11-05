@@ -2,10 +2,51 @@
 
 The DriftVaneOS launcher. Pages of apps, a floating glass dock, folders, widgets and a smart App Library, styled to match AlexLMP.
 
-## v0.4.1
+## v0.9: setup and home styles
 
-- The iOS-style launcher from 0.4 (back from the 0.5-0.8 design tests), with the category fix
-  from 0.6: tapping an app in an open category opens it.
+- First-boot setup: right after the phone's setup, DriftHome asks two things:
+  1. Pick your Settings: Live tiles, Device card or Category chips
+  2. Pick your home screen: Frame, Split, Stack or Columns
+  Run it again any time: Home settings -> Home screen -> Run setup again.
+- Home styles:
+  - Frame: a solid page with a window that shows your wallpaper and the time
+  - Split: swipeable cards (clock, now playing, battery) above your apps
+  - Stack: a deck of those cards; flick the top one to the back
+  - Columns: info cards on the left, your apps as a labeled list on the right
+
+## v0.8
+
+- DriftVane blue by default: clock, outline icons, dots and dock line are all blue
+  (pick another accent in Home settings -> Look).
+- The Search pill is off by default (just small page dots), so the grid goes lower and apps
+  can sit right above the dock. Turn the pill back on in Home settings -> Home screen.
+
+## v0.7
+
+- Bold clock is the default look again (Tonal dashboard stays as an option in Home settings).
+- The grid fills the screen down to the dock: as many rows as fit, so you can drop apps right
+  above the dock.
+- Category view: tapping an app opens it.
+
+## v0.6: Tonal dashboard
+
+- New default look: a solid tonal card with the time and date at the top of the first page,
+  then a pastel "Now playing" tile (tap to open the player) and a battery tile.
+- Round app icons on a solid tonal panel, no labels; a chunky tonal dock.
+- Everything is solid (no see-through) and colored from your accent.
+- The Bold clock look is still there: Home settings -> Home screen -> Top of first page.
+- Category view: simpler tap targets so tapping an app opens it.
+
+## v0.5: Bold clock
+
+- New look: a huge two-tone clock on the first page (hours in your accent, minutes softer),
+  date and battery above it, and what's playing below it (tap it to open the player).
+  First time: tap the line under the clock and allow notification access for DriftHome.
+- Drift outline icons: accent symbols on dark tiles with an accent outline, no labels.
+- Apps sit low on the first page, under the clock, where your thumb reaches.
+- Line dock: no box, just a thin accent line above the dock icons.
+- App Library: solid category cards (no see-through). Tap an app to open it, tap the card
+  or the +N tile to see the whole category.
 
 ## v0.4
 

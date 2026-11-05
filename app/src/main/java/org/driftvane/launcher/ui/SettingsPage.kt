@@ -46,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -119,7 +120,7 @@ fun SettingsPage(model: LauncherModel, onClose: () -> Unit) {
                             Group { ActionRow("Reset home screen layout", Color(0xFFFF6B78)) { model.resetLayout(); onClose() } }
                         }
                         item {
-                            Text("DriftHome 0.4.1 · made for DriftVaneOS", color = Color(0x80FFFFFF), fontSize = 12.sp,
+                            Text("DriftHome 0.9 · made for DriftVaneOS", color = Color(0x80FFFFFF), fontSize = 12.sp,
                                 fontWeight = FontWeight.W600, modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp),
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                         }
@@ -154,14 +155,34 @@ fun SettingsPage(model: LauncherModel, onClose: () -> Unit) {
                     }
                     SPage.HOME -> {
                         item {
+                            Group(title = "Home style") {
+                                model.homeStyles.forEachIndexed { i, (id, n) ->
+                                    CheckRow(n, styleHint(id), model.topStyle == id, model.accent) { model.applyHomeStyle(id) }
+                                }
+                                ActionRow("Run setup again", model.accent) { model.restartSetup(); onClose() }
+                            }
+                        }
+                        item {
                             Group(title = "Grid") {
                                 Seg(listOf("4 columns" to 4, "5 columns" to 5, "6 columns" to 6), model.columns, model.accent) { model.changeColumns(it) }
                             }
                         }
                         item {
+                            val ctx = androidx.compose.ui.platform.LocalContext.current
+                            Group(title = "Now playing") {
+                                NavRow(
+                                    "Show what's playing",
+                                    if (hasMediaAccess(ctx)) "On: the song shows under the clock" else "Turn on notification access for DriftHome",
+                                    G.SPARK, model.accent, last = true,
+                                ) { openMediaAccessSettings(ctx) }
+                            }
+                        }
+                        item {
                             Group {
-                                ToggleRow("Clock & battery card", model.showGlance, model.accent) { model.changeGlance(it) }
-                                ToggleRow("Search pill & page dots", model.showDots, model.accent, last = true) { model.changeDots(it) }
+                                ToggleRow("Top of first page", model.showGlance, model.accent) { model.changeGlance(it) }
+                                ToggleRow("Panel behind apps", model.gridPanel, model.accent) { model.changeGridPanel(it) }
+                                ToggleRow("Page dots", model.showDots, model.accent) { model.changeDots(it) }
+                                ToggleRow("Search pill above the dock", model.searchPill, model.accent, last = true) { model.changeSearchPill(it) }
                             }
                         }
                     }
@@ -173,8 +194,8 @@ fun SettingsPage(model: LauncherModel, onClose: () -> Unit) {
                         }
                         item {
                             Group(title = "Style") {
-                                listOf("glass" to "Liquid glass", "clear" to "Clear", "solid" to "Solid").forEachIndexed { i, (id, n) ->
-                                    CheckRow(n, null, model.dockStyle == id, model.accent, last = i == 2) { model.changeDockStyle(id) }
+                                listOf("tonal" to "Tonal", "line" to "Line", "glass" to "Tinted card", "clear" to "Clear", "solid" to "Solid").forEachIndexed { i, (id, n) ->
+                                    CheckRow(n, null, model.dockStyle == id, model.accent, last = i == 4) { model.changeDockStyle(id) }
                                 }
                             }
                         }
@@ -310,18 +331,33 @@ private fun Preview(model: LauncherModel) {
 /** Dock background for the chosen dock style. */
 fun dockModifier(model: LauncherModel): Modifier = when (model.dockStyle) {
     "clear" -> Modifier
+    // a thin accent line above the dock icons
+    "line" -> Modifier.drawBehind {
+        drawLine(model.accent.copy(alpha = 0.35f), androidx.compose.ui.geometry.Offset(24f, 0f),
+            androidx.compose.ui.geometry.Offset(size.width - 24f, 0f), 2f)
+    }
     "solid" -> Modifier.clip(RoundedCornerShape(32.dp)).background(Color(0xE6141218))
+    // solid tonal pill in the accent
+    "tonal" -> Modifier.clip(RoundedCornerShape(34.dp)).background(Tonal.strong(model.accent))
     else -> Modifier.glass(32.dp, model.glassStrength * 0.85f)
 }
 
-private fun dockName(id: String) = when (id) { "clear" -> "Clear"; "solid" -> "Solid"; else -> "Liquid glass" }
+private fun styleHint(id: String) = when (id) {
+    "frame" -> "Your wallpaper in a window with the clock"
+    "split" -> "Swipeable cards on top, apps below"
+    "stack" -> "A deck of cards you flick through"
+    else -> "Info on the left, apps on the right"
+}
+
+private fun dockName(id: String) = when (id) { "clear" -> "Clear"; "solid" -> "Solid"; "line" -> "Line"; "tonal" -> "Tonal"; else -> "Tinted card" }
 private fun libraryName(id: String) = when (id) {
     LibraryStyle.CARDS -> "Category cards"; LibraryStyle.LIST -> "A–Z list"; LibraryStyle.DRAWER -> "Swipe-up drawer"; else -> "Smart categories"
 }
 private fun themeHint(id: String) = when (id) {
     IconTheme.THEMED -> "Icons tinted with your accent color"
     IconTheme.LIGHT -> "Light tiles, colored symbols"
-    IconTheme.GLASS -> "App symbols on liquid glass"
+    IconTheme.GLASS -> "App symbols on a clear tile"
+    IconTheme.OUTLINE -> "Accent symbols on dark tiles with an outline"
     IconTheme.MONO -> "Clean white symbols on dark tiles"
     else -> "Each app's own icon"
 }

@@ -105,10 +105,21 @@ fun HomePage(
 ) {
     val cellH = cellHeight(model)
     val p = model.pages.getOrNull(page) ?: return
+    if (page == 0 && model.showGlance && model.topStyle == "columns") {
+        // Columns style: info on the left, apps as a list on the right
+        Box(Modifier.fillMaxWidth().height(cellH * model.rows)) { ColumnsPage(model, p.items, handler) }
+        return
+    }
     Column(Modifier.fillMaxWidth()) {
         if (page == 0 && model.showGlance) {
-            Box(Modifier.fillMaxWidth().height(cellH * 2).padding(horizontal = 16.dp, vertical = 6.dp)) {
-                GlanceCard(model, Modifier.fillMaxSize())
+            Box(Modifier.fillMaxWidth().height(cellH * model.topRows()).padding(vertical = 6.dp)) {
+                when (model.topStyle) {
+                    "bold" -> BoldClock(model, Modifier.align(Alignment.TopStart))
+                    "dashboard" -> DashboardTop(model)
+                    "frame" -> FrameTop(model) { model.frameHole = it }
+                    "split" -> SplitTop(model)
+                    else -> StackTop(model)
+                }
                 if (editMode) RemoveBadge(Modifier.align(Alignment.TopStart).offset((-6).dp, (-6).dp)) {
                     model.changeGlance(false)
                 }
@@ -293,9 +304,22 @@ private fun HomeGrid(
             drag.grids[page] = GridInfo(it.boundsInRoot(), cellW, cellH, cols)
         })
 
-        widgets.forEach { w -> WidgetCell(model, page, w, editMode, cellW, cellH, widget) }
-
         val free = remember(widgets, cols, rows) { model.freeCells(page) }
+
+        // solid tonal panel behind the rows that have apps or widgets
+        if (model.gridPanel) {
+            var lastRow = -1
+            items.forEachIndexed { i, k -> if (k != org.driftvane.launcher.EMPTY) free.getOrNull(i)?.let { lastRow = maxOf(lastRow, it / cols) } }
+            widgets.forEach { lastRow = maxOf(lastRow, it.row + it.spanY - 1) }
+            if (lastRow >= 0) {
+                Box(
+                    Modifier.fillMaxWidth().height(cellHdp * (lastRow + 1))
+                        .clip(RoundedCornerShape(30.dp)).background(Tonal.quiet(model.accent))
+                )
+            }
+        }
+
+        widgets.forEach { w -> WidgetCell(model, page, w, editMode, cellW, cellH, widget) }
         val angle = if (editMode) wiggleAngle() else 0f
         val order = previewOrder(items, page, drag.key, drag.hover)
         val ontoTarget = (drag.hover as? Hover.Onto)?.takeIf { it.page == page }?.target

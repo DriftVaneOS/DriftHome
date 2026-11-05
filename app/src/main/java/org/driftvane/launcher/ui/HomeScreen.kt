@@ -59,6 +59,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -112,6 +113,7 @@ fun HomeScreen(
     val density = LocalDensity.current
     val screenW = with(density) { LocalConfiguration.current.screenWidthDp.dp.toPx() }
     val statusTop = WindowInsets.statusBars.getTop(density)
+    Tone.accent = model.accent
     var pagerH by remember { mutableIntStateOf(0) }
     var bottomBarH by remember { mutableIntStateOf(0) }
     val bottomBarDp = with(density) { bottomBarH.toDp() }
@@ -119,8 +121,12 @@ fun HomeScreen(
     LaunchedEffect(pagerH, bottomBarH, statusTop) {
         if (pagerH > 0 && bottomBarH > 0) {
             val top = statusTop + with(density) { 14.dp.toPx() }
-            val avail = with(density) { ((pagerH - top - bottomBarH) / model.rows).toDp() }
-            model.cellH = avail.coerceIn(92.dp, 132.dp)
+            val availPx = pagerH - top - bottomBarH
+            // as many rows as fit (about 100dp each), so the grid reaches right down to the dock
+            val fit = (availPx / with(density) { 100.dp.toPx() }).toInt()
+            model.changeRows(fit)
+            val avail = with(density) { (availPx / model.rows).toDp() }
+            model.cellH = avail.coerceIn(80.dp, 140.dp)
         }
     }
     val drawerMode = model.libraryStyle == LibraryStyle.DRAWER
@@ -321,6 +327,7 @@ fun HomeScreen(
 
     CompositionLocalProvider(
         LocalIconShape provides IconShapes.shape(model.iconShape),
+        LocalIconBorder provides (if (model.iconTheme == org.driftvane.launcher.IconTheme.OUTLINE) soften(model.accent, 0.35f).copy(alpha = 0.9f) else null),
         LocalResumeTick provides resumed,
     ) {
     Box(Modifier.fillMaxSize()) {
@@ -354,7 +361,10 @@ fun HomeScreen(
                 ) { page ->
                     if (page < model.pages.size) {
                         val pageTopLeft = remember { arrayOf(Offset.Zero) }
-                        Box(Modifier.fillMaxSize().onGloballyPositioned { pageTopLeft[0] = it.positionInRoot() }) {
+                        Box(
+                            Modifier.fillMaxSize().onGloballyPositioned { pageTopLeft[0] = it.positionInRoot() }
+                                .then(frameBackground(model, if (page == 0) pageTopLeft else null))
+                        ) {
                             // empty space: long-press for the home menu, tap to leave edit mode
                             Box(
                                 Modifier.matchParentSize().pointerInput(editMode) {
@@ -374,7 +384,7 @@ fun HomeScreen(
                             }
                         }
                     } else {
-                        Box(Modifier.fillMaxSize().statusBarsPadding()) {
+                        Box(Modifier.fillMaxSize().then(frameBackground(model, null)).statusBarsPadding()) {
                             AppLibrary(model, handler,
                                 onSearch = { searchOpen = true },
                                 onSettings = { settingsOpen = true },
@@ -392,14 +402,20 @@ fun HomeScreen(
                             alpha = 1f - lib
                         }
                 ) {
-                Box(Modifier.fillMaxWidth().height(48.dp), contentAlignment = Alignment.Center) {
+                // slim strip: page dots (or the Search pill if turned on); edit buttons float above it
+                Box(Modifier.fillMaxWidth().height(if (model.searchPill) 48.dp else 16.dp), contentAlignment = Alignment.Center) {
                     androidx.compose.animation.AnimatedVisibility(
                         model.showDots && !editMode, enter = fadeIn(), exit = fadeOut(),
                     ) {
-                        SearchPill(model, pageCount, pager.currentPage, pager.isScrollInProgress) { searchOpen = true }
+                        if (model.searchPill) {
+                            SearchPill(model, pageCount, pager.currentPage, pager.isScrollInProgress) { searchOpen = true }
+                        } else {
+                            PageDots(pageCount, pager.currentPage, model.accent)
+                        }
                     }
                     androidx.compose.animation.AnimatedVisibility(
                         editMode,
+                        modifier = Modifier.offset(y = if (model.searchPill) 0.dp else (-22).dp),
                         enter = fadeIn() + scaleIn(initialScale = 0.85f),
                         exit = fadeOut() + scaleOut(targetScale = 0.85f),
                     ) {
@@ -488,6 +504,10 @@ fun HomeScreen(
             enter = fadeIn() + slideInVertically(spring(dampingRatio = 0.9f, stiffness = 380f)) { it / 4 },
             exit = fadeOut() + slideOutVertically { it / 4 },
         ) { SettingsPage(model) { settingsOpen = false } }
+        // first-boot setup: pick your Settings style, then your home screen
+        AnimatedVisibility(model.loaded && !model.setupDone, enter = fadeIn(), exit = fadeOut()) {
+            SetupFlow(model)
+        }
     }
     }
 }
@@ -641,4 +661,27 @@ private fun Dock(model: LauncherModel, editMode: Boolean, drag: DragState, handl
             }
         }
     }
+}
+
+
+/**
+ * Frame style: pages get a solid dark background. On page one, the frame card is cut out of
+ * it so your real wallpaper shows through the window.
+ */
+private fun frameBackground(model: LauncherModel, pageTopLeft: Array<Offset>?): Modifier {
+    if (!model.showGlance || model.topStyle != "frame") return Modifier
+    return Modifier
+        .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+        .drawBehind {
+            drawRect(FrameInk)
+            val hole = model.frameHole
+            if (pageTopLeft != null && hole != Rect.Zero) {
+                val tl = hole.topLeft - pageTopLeft[0]
+                drawRoundRect(
+                    Color.Black, topLeft = tl, size = hole.size,
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(28.dp.toPx()),
+                    blendMode = androidx.compose.ui.graphics.BlendMode.Clear,
+                )
+            }
+        }
 }
