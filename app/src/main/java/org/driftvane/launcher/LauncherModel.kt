@@ -56,8 +56,7 @@ object IconTheme {
     const val LIGHT = "light"
     const val GLASS = "glass"
     const val MONO = "mono"
-    const val OUTLINE = "outline"
-    val all = listOf(OUTLINE to "Drift outline", ORIGINAL to "Original", THEMED to "Themed", LIGHT to "Light", GLASS to "Clear", MONO to "Mono")
+    val all = listOf(ORIGINAL to "Original", THEMED to "Themed", LIGHT to "Light", GLASS to "Liquid glass", MONO to "Mono")
 }
 
 /** A widget placed on the home grid: top-left cell ([col], [row]) and size in cells. */
@@ -74,7 +73,7 @@ sealed class Source {
 
 /** AlexLMP accent colors. */
 val Accents = listOf(
-    Color(0xFF4D8DFF), Color(0xFFFF4D5E), Color(0xFF8CD0F0), Color(0xFFF09CE2), Color(0xFFFFB59C), Color(0xFFFF8A3D),
+    Color(0xFFFF4D5E), Color(0xFF8CD0F0), Color(0xFFF09CE2), Color(0xFFFFB59C), Color(0xFFFF8A3D),
 )
 
 object LibraryStyle {
@@ -104,15 +103,15 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
     private val launcherApps = context.getSystemService(LauncherApps::class.java)
     private val prefs = context.getSharedPreferences("drifthome", Context.MODE_PRIVATE)
 
-    // the current default look, applied once on update (users can change it after)
+    // v0.3.4 look: 5 columns with XL icons, applied once (users can change it after).
     init {
-        if (prefs.getInt("look", 0) < 9) {
-            // "Bold clock" look in DriftVane blue (the DriftVaneOS default)
-            prefs.edit().putInt("look", 9).putInt("accent", 0).putBoolean("search_pill", false).putInt("columns", 5).putFloat("icon_scale", 1.04f)
-                .putString("icon_theme", IconTheme.OUTLINE).putString("icon_shape", "rounded")
-                .putString("dock_style", "line").putBoolean("labels", false).putBoolean("glance", true)
-                .putString("top_style", "bold").putBoolean("grid_panel", false)
-                .putString("library", LibraryStyle.CARDS)
+        if (prefs.getInt("look", 0) < 10) {
+            // back to the iOS-style look (also undoes settings left over from the 0.5-0.8 tests)
+            prefs.edit().putInt("look", 10).putInt("columns", 5).putFloat("icon_scale", 1.18f)
+                .putFloat("label_size", 12f).putBoolean("labels", true).putInt("accent", 0)
+                .putString("icon_theme", IconTheme.ORIGINAL).putString("icon_shape", "squircle")
+                .putString("dock_style", "glass").putString("library", LibraryStyle.SMART)
+                .putBoolean("glance", true).putBoolean("dots", true)
                 .putBoolean("pending_reflow", true).apply()
         }
     }
@@ -127,39 +126,29 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
     // ---- settings ----
     var accentIndex by mutableStateOf(prefs.getInt("accent", 0))
         private set
-    var showLabels by mutableStateOf(prefs.getBoolean("labels", false))
+    var showLabels by mutableStateOf(prefs.getBoolean("labels", true))
         private set
-    var iconScale by mutableStateOf(prefs.getFloat("icon_scale", 1.04f))
+    var iconScale by mutableStateOf(prefs.getFloat("icon_scale", 1.18f))
         private set
     var columns by mutableStateOf(prefs.getInt("columns", 5))
         private set
     var showGlance by mutableStateOf(prefs.getBoolean("glance", true))
         private set
-    /** What sits at the top of the first page: "dashboard" (tonal cards) or "bold" (big clock). */
-    var topStyle by mutableStateOf(prefs.getString("top_style", "bold")!!)
-        private set
-    /** Solid tonal panel behind the app grid. */
-    var gridPanel by mutableStateOf(prefs.getBoolean("grid_panel", false))
-        private set
-    /** Glass "Search" pill above the dock (off: just small page dots, so apps can sit lower). */
-    var searchPill by mutableStateOf(prefs.getBoolean("search_pill", false))
-        private set
-    fun changeSearchPill(v: Boolean) { searchPill = v; prefs.edit().putBoolean("search_pill", v).apply() }
     var showDots by mutableStateOf(prefs.getBoolean("dots", true))
         private set
     var showDock by mutableStateOf(prefs.getBoolean("dock", true))
         private set
-    var libraryStyle by mutableStateOf(prefs.getString("library", LibraryStyle.CARDS)!!)
+    var libraryStyle by mutableStateOf(prefs.getString("library", LibraryStyle.SMART)!!)
         private set
     var swipeDown by mutableStateOf(prefs.getString("swipe_down", SwipeDown.SEARCH)!!)
         private set
     var glassStrength by mutableStateOf(prefs.getFloat("glass", 0.72f))
         private set
-    var iconShape by mutableStateOf(prefs.getString("icon_shape", "rounded")!!)
+    var iconShape by mutableStateOf(prefs.getString("icon_shape", "squircle")!!)
         private set
-    var iconTheme by mutableStateOf(prefs.getString("icon_theme", IconTheme.OUTLINE)!!)
+    var iconTheme by mutableStateOf(prefs.getString("icon_theme", IconTheme.ORIGINAL)!!)
         private set
-    var dockStyle by mutableStateOf(prefs.getString("dock_style", "line")!!)
+    var dockStyle by mutableStateOf(prefs.getString("dock_style", "glass")!!)
         private set
     var haptics by mutableStateOf(prefs.getBoolean("haptics", true))
         private set
@@ -171,23 +160,15 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         private set
 
     val accent: Color get() = Accents[accentIndex.coerceIn(0, Accents.lastIndex)]
-    /** Grid rows per page; HomeScreen fits as many as the screen has room for, down to the dock. */
-    var rows by mutableStateOf(prefs.getInt("rows", 6).coerceIn(5, 8))
-        private set
-    fun changeRows(r: Int) {
-        val n = r.coerceIn(5, 8)
-        if (n == rows) return
-        rows = n; prefs.edit().putInt("rows", n).apply()
-        if (loaded) reflowAll()
-    }
+    val rows = 6
 
     /** Height of one grid row; HomeScreen sets it so the 6 rows fill the screen evenly. */
     var cellH by mutableStateOf(112.dp)
-    private val glanceRows = 3
+    private val glanceRows = 2
 
     fun changeAccent(i: Int) {
         accentIndex = i; prefs.edit().putInt("accent", i).apply()
-        if (iconTheme == IconTheme.THEMED || iconTheme == IconTheme.LIGHT || iconTheme == IconTheme.OUTLINE) reload()
+        if (iconTheme == IconTheme.THEMED || iconTheme == IconTheme.LIGHT) reload()
     }
     fun changeLabels(v: Boolean) { showLabels = v; prefs.edit().putBoolean("labels", v).apply() }
     fun changeIconScale(v: Float) { iconScale = v; prefs.edit().putFloat("icon_scale", v).apply() }
@@ -221,8 +202,6 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
     fun changeColumns(v: Int) {
         columns = v; prefs.edit().putInt("columns", v).apply(); reflowAll()
     }
-    fun changeTopStyle(v: String) { topStyle = v; prefs.edit().putString("top_style", v).apply() }
-    fun changeGridPanel(v: Boolean) { gridPanel = v; prefs.edit().putBoolean("grid_panel", v).apply() }
     fun changeGlance(v: Boolean) {
         showGlance = v; prefs.edit().putBoolean("glance", v).apply(); reflowAll()
     }
@@ -365,7 +344,6 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
             IconTheme.THEMED -> { c.drawColor(0xFF23202C.toInt()); mono(lighten(accent)) }
             IconTheme.LIGHT -> { c.drawColor(0xFFF3F0F6.toInt()); mono(darken(accent)) }
             IconTheme.MONO -> { c.drawColor(0xFF19181D.toInt()); mono(0xFFF2F2F2.toInt()) }
-            IconTheme.OUTLINE -> { c.drawColor(deep(accent)); mono(lighten(accent)) }
             IconTheme.GLASS -> {
                 val paint = Paint(Paint.ANTI_ALIAS_FLAG)
                 paint.shader = LinearGradient(0f, 0f, 0f, s.toFloat(), 0x66FFFFFF, 0x22FFFFFF, Shader.TileMode.CLAMP)
@@ -391,12 +369,6 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         val b = (android.graphics.Color.blue(c) + 255 * 2) / 3
         return android.graphics.Color.rgb(r, g, b)
     }
-
-    /** Very dark tint of the accent: the tile color for the outline theme. */
-    private fun deep(c: Int): Int = android.graphics.Color.rgb(
-        (android.graphics.Color.red(c) * 0.28f + 14).toInt(), (android.graphics.Color.green(c) * 0.28f + 12).toInt(),
-        (android.graphics.Color.blue(c) * 0.28f + 16).toInt(),
-    )
 
     private fun darken(c: Int): Int = android.graphics.Color.rgb(
         android.graphics.Color.red(c) * 2 / 3, android.graphics.Color.green(c) * 2 / 3, android.graphics.Color.blue(c) * 2 / 3,

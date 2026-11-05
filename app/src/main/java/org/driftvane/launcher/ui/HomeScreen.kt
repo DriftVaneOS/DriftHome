@@ -112,7 +112,6 @@ fun HomeScreen(
     val density = LocalDensity.current
     val screenW = with(density) { LocalConfiguration.current.screenWidthDp.dp.toPx() }
     val statusTop = WindowInsets.statusBars.getTop(density)
-    Tone.accent = model.accent
     var pagerH by remember { mutableIntStateOf(0) }
     var bottomBarH by remember { mutableIntStateOf(0) }
     val bottomBarDp = with(density) { bottomBarH.toDp() }
@@ -120,12 +119,8 @@ fun HomeScreen(
     LaunchedEffect(pagerH, bottomBarH, statusTop) {
         if (pagerH > 0 && bottomBarH > 0) {
             val top = statusTop + with(density) { 14.dp.toPx() }
-            val availPx = pagerH - top - bottomBarH
-            // as many rows as fit (about 100dp each), so the grid reaches right down to the dock
-            val fit = (availPx / with(density) { 100.dp.toPx() }).toInt()
-            model.changeRows(fit)
-            val avail = with(density) { (availPx / model.rows).toDp() }
-            model.cellH = avail.coerceIn(80.dp, 140.dp)
+            val avail = with(density) { ((pagerH - top - bottomBarH) / model.rows).toDp() }
+            model.cellH = avail.coerceIn(92.dp, 132.dp)
         }
     }
     val drawerMode = model.libraryStyle == LibraryStyle.DRAWER
@@ -326,7 +321,6 @@ fun HomeScreen(
 
     CompositionLocalProvider(
         LocalIconShape provides IconShapes.shape(model.iconShape),
-        LocalIconBorder provides (if (model.iconTheme == org.driftvane.launcher.IconTheme.OUTLINE) soften(model.accent, 0.35f).copy(alpha = 0.9f) else null),
         LocalResumeTick provides resumed,
     ) {
     Box(Modifier.fillMaxSize()) {
@@ -398,20 +392,14 @@ fun HomeScreen(
                             alpha = 1f - lib
                         }
                 ) {
-                // slim strip: page dots (or the Search pill if turned on); edit buttons float above it
-                Box(Modifier.fillMaxWidth().height(if (model.searchPill) 48.dp else 16.dp), contentAlignment = Alignment.Center) {
+                Box(Modifier.fillMaxWidth().height(48.dp), contentAlignment = Alignment.Center) {
                     androidx.compose.animation.AnimatedVisibility(
                         model.showDots && !editMode, enter = fadeIn(), exit = fadeOut(),
                     ) {
-                        if (model.searchPill) {
-                            SearchPill(model, pageCount, pager.currentPage, pager.isScrollInProgress) { searchOpen = true }
-                        } else {
-                            PageDots(pageCount, pager.currentPage, model.accent)
-                        }
+                        SearchPill(model, pageCount, pager.currentPage, pager.isScrollInProgress) { searchOpen = true }
                     }
                     androidx.compose.animation.AnimatedVisibility(
                         editMode,
-                        modifier = Modifier.offset(y = if (model.searchPill) 0.dp else (-22).dp),
                         enter = fadeIn() + scaleIn(initialScale = 0.85f),
                         exit = fadeOut() + scaleOut(targetScale = 0.85f),
                     ) {

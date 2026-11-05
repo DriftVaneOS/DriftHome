@@ -107,9 +107,8 @@ fun HomePage(
     val p = model.pages.getOrNull(page) ?: return
     Column(Modifier.fillMaxWidth()) {
         if (page == 0 && model.showGlance) {
-            Box(Modifier.fillMaxWidth().height(cellH * 3).padding(vertical = 6.dp)) {
-                if (model.topStyle == "bold") BoldClock(model, Modifier.align(Alignment.TopStart))
-                else DashboardTop(model)
+            Box(Modifier.fillMaxWidth().height(cellH * 2).padding(horizontal = 16.dp, vertical = 6.dp)) {
+                GlanceCard(model, Modifier.fillMaxSize())
                 if (editMode) RemoveBadge(Modifier.align(Alignment.TopStart).offset((-6).dp, (-6).dp)) {
                     model.changeGlance(false)
                 }
@@ -294,22 +293,9 @@ private fun HomeGrid(
             drag.grids[page] = GridInfo(it.boundsInRoot(), cellW, cellH, cols)
         })
 
-        val free = remember(widgets, cols, rows) { model.freeCells(page) }
-
-        // solid tonal panel behind the rows that have apps or widgets
-        if (model.gridPanel) {
-            var lastRow = -1
-            items.forEachIndexed { i, k -> if (k != org.driftvane.launcher.EMPTY) free.getOrNull(i)?.let { lastRow = maxOf(lastRow, it / cols) } }
-            widgets.forEach { lastRow = maxOf(lastRow, it.row + it.spanY - 1) }
-            if (lastRow >= 0) {
-                Box(
-                    Modifier.fillMaxWidth().height(cellHdp * (lastRow + 1))
-                        .clip(RoundedCornerShape(30.dp)).background(Tonal.quiet(model.accent))
-                )
-            }
-        }
-
         widgets.forEach { w -> WidgetCell(model, page, w, editMode, cellW, cellH, widget) }
+
+        val free = remember(widgets, cols, rows) { model.freeCells(page) }
         val angle = if (editMode) wiggleAngle() else 0f
         val order = previewOrder(items, page, drag.key, drag.hover)
         val ontoTarget = (drag.hover as? Hover.Onto)?.takeIf { it.page == page }?.target

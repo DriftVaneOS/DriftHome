@@ -31,16 +31,5 @@
                 <category android:name="android.intent.category.LAUNCHER_APP" />
             </intent-filter>
         </activity>
-
-        <!-- "Now playing" under the clock: media sessions are only readable by a notification listener -->
-        <service
-            android:name=".MediaListener"
-            android:exported="true"
-            android:label="${appLabel} now playing"
-            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
-            <intent-filter>
-                <action android:name="android.service.notification.NotificationListenerService" />
-            </intent-filter>
-        </service>
     </application>
 </manifest>
