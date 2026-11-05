@@ -2,6 +2,13 @@
 
 The DriftVaneOS launcher. Pages of apps, a floating glass dock, folders, widgets and a smart App Library, styled to match AlexLMP.
 
+## v0.3.3: new home screen
+
+- **New top widgets:** a colorful clock tile (time, greeting, day) next to a glass date + battery ring tile.
+- **New layout:** 4 roomy columns with bigger icons, rows spread evenly down to the dock, side margins.
+- **Search pill:** a glass "Search" pill above the dock; it turns into page dots while you swipe.
+- Plain page swipe (no page animations).
+
 ## v0.3
 
 - **Liquid glass everywhere:** dock, folders, menus and settings use a frosted glass look with a bright rim and sheen.

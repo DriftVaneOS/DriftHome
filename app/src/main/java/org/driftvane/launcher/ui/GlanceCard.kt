@@ -4,7 +4,20 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -31,7 +44,7 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
-/** Big glass card at the top of the first page: time, date, greeting and battery. */
+/** Top of the first page: a colorful clock tile and a glass date + battery tile. */
 @Composable
 fun GlanceCard(model: org.driftvane.launcher.LauncherModel, modifier: Modifier = Modifier) {
     val accent = model.accent
@@ -59,22 +72,74 @@ fun GlanceCard(model: org.driftvane.launcher.LauncherModel, modifier: Modifier =
     val time = SimpleDateFormat(if (android.text.format.DateFormat.is24HourFormat(context)) "HH:mm" else "h:mm", Locale.getDefault()).format(now)
     val date = SimpleDateFormat("EEEE, MMMM d", Locale.getDefault()).format(now)
 
-    Column(modifier.fillMaxWidth().glass(30.dp, model.glassStrength).padding(20.dp)) {
-        Text(greeting.uppercase(), color = accent, fontSize = 12.sp, fontWeight = FontWeight.W800, letterSpacing = 2.sp)
-        Text(time, color = Color.White, fontSize = 56.sp, fontWeight = FontWeight.W800, lineHeight = 60.sp)
-        Text(date, color = Color(0xFFD5DCE0), fontSize = 16.sp, fontWeight = FontWeight.W700)
-        Spacer(Modifier.height(14.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.width(120.dp).height(8.dp).background(Color(0x33FFFFFF), RoundedCornerShape(4.dp))) {
-                Box(
-                    Modifier.fillMaxWidth(battery / 100f).height(8.dp)
-                        .background(accent, RoundedCornerShape(4.dp))
-                )
+    val charging = isCharging(context, battery)
+    val day = SimpleDateFormat("d", Locale.getDefault()).format(now)
+    val weekday = SimpleDateFormat("EEEE", Locale.getDefault()).format(now)
+    val month = SimpleDateFormat("MMMM", Locale.getDefault()).format(now)
+
+    // Two square widget tiles, side by side.
+    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        // 1. Clock: colorful tile with the time and a greeting
+        Column(
+            Modifier.weight(1f).fillMaxHeight()
+                .shadow(18.dp, RoundedCornerShape(26.dp), ambientColor = accent, spotColor = accent)
+                .clip(RoundedCornerShape(26.dp))
+                .background(Brush.linearGradient(listOf(accent, lerpColor(accent, Color(0xFF1A1030), 0.55f), Color(0xFF120D1E))))
+                .drawWithContent {
+                    drawContent()
+                    drawCircle(Color.White.copy(alpha = 0.10f), size.minDimension * 0.55f, Offset(size.width * 1.02f, -size.height * 0.08f))
+                }
+                .padding(16.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(greeting, color = Color.White.copy(alpha = 0.85f), fontSize = 13.sp, fontWeight = FontWeight.W700)
+            Column {
+                Text(time, color = Color.White, fontSize = 44.sp, fontWeight = FontWeight.W800, lineHeight = 46.sp, maxLines = 1)
+                Text(weekday, color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp, fontWeight = FontWeight.W600)
             }
-            Spacer(Modifier.width(10.dp))
-            Text("$battery%", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.W800)
+        }
+        // 2. Date + battery: glass tile with a battery ring
+        Column(
+            Modifier.weight(1f).fillMaxHeight().glass(26.dp, model.glassStrength).padding(16.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Row(verticalAlignment = Alignment.Top) {
+                Column(Modifier.weight(1f)) {
+                    Text(month.uppercase(), color = accent, fontSize = 12.sp, fontWeight = FontWeight.W800, letterSpacing = 1.5.sp)
+                    Text(day, color = Color.White, fontSize = 40.sp, fontWeight = FontWeight.W800, lineHeight = 42.sp)
+                }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) {
+                    Canvas(Modifier.fillMaxSize()) {
+                        val sw = size.minDimension * 0.14f
+                        val inset = sw / 2
+                        val arc = Size(size.width - sw, size.height - sw)
+                        drawArc(Color.White.copy(alpha = 0.18f), 0f, 360f, false, Offset(inset, inset), arc, style = Stroke(sw))
+                        drawArc(if (battery <= 15 && !charging) Color(0xFFFF5A5F) else Color(0xFF7CE38B), -90f, 360f * battery / 100f,
+                            false, Offset(inset, inset), arc, style = Stroke(sw, cap = StrokeCap.Round))
+                    }
+                    Text("$battery", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.W800)
+                }
+                Spacer(Modifier.width(10.dp))
+                Column {
+                    Text(if (charging) "Charging" else "Battery", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.W700)
+                    Text("$battery%", color = Color.White.copy(alpha = 0.65f), fontSize = 12.sp, fontWeight = FontWeight.W600)
+                }
+            }
         }
     }
+}
+
+private fun lerpColor(a: Color, b: Color, t: Float) = Color(
+    a.red + (b.red - a.red) * t, a.green + (b.green - a.green) * t, a.blue + (b.blue - a.blue) * t, 1f,
+)
+
+@Suppress("UNUSED_PARAMETER")
+private fun isCharging(context: Context, battery: Int): Boolean {
+    val i: Intent? = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+    val st = i?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
+    return st == BatteryManager.BATTERY_STATUS_CHARGING || st == BatteryManager.BATTERY_STATUS_FULL
 }
 
 private fun batteryLevel(context: Context): Int {
