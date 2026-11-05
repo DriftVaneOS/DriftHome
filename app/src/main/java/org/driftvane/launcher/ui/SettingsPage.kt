@@ -119,7 +119,7 @@ fun SettingsPage(model: LauncherModel, onClose: () -> Unit) {
                             Group { ActionRow("Reset home screen layout", Color(0xFFFF6B78)) { model.resetLayout(); onClose() } }
                         }
                         item {
-                            Text("DriftHome 0.3.3 · made for DriftVaneOS", color = Color(0x80FFFFFF), fontSize = 12.sp,
+                            Text("DriftHome 0.3.4 · made for DriftVaneOS", color = Color(0x80FFFFFF), fontSize = 12.sp,
                                 fontWeight = FontWeight.W600, modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp),
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                         }
@@ -142,7 +142,7 @@ fun SettingsPage(model: LauncherModel, onClose: () -> Unit) {
                         }
                         item {
                             Group(title = "Size") {
-                                Seg(listOf("S" to 0.95f, "M" to 1.1f, "L" to 1.22f, "XL" to 1.32f), model.iconScale, model.accent) { model.changeIconScale(it) }
+                                Seg(listOf("S" to 1f, "M" to 1.1f, "L" to 1.18f, "XL" to 1.26f), model.iconScale, model.accent) { model.changeIconScale(it) }
                             }
                         }
                         item {
@@ -270,7 +270,7 @@ private fun Header(p: SPage, accent: Color, onBack: () -> Unit, onDone: () -> Un
                 Text("Done", color = Color.White, fontWeight = FontWeight.W700, fontSize = 15.sp)
             }
         }
-        Text(p.title, color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.W800, modifier = Modifier.padding(start = 4.dp, top = 6.dp))
+        Text(p.title, color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.W700, modifier = Modifier.padding(start = 4.dp, top = 6.dp))
     }
 }
 

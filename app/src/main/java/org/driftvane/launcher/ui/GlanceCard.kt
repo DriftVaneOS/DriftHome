@@ -77,55 +77,41 @@ fun GlanceCard(model: org.driftvane.launcher.LauncherModel, modifier: Modifier =
     val weekday = SimpleDateFormat("EEEE", Locale.getDefault()).format(now)
     val month = SimpleDateFormat("MMMM", Locale.getDefault()).format(now)
 
-    // Two square widget tiles, side by side.
-    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        // 1. Clock: colorful tile with the time and a greeting
+    // Two matching glass tiles: time on the left, date + battery on the right.
+    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Column(
-            Modifier.weight(1f).fillMaxHeight()
-                .shadow(18.dp, RoundedCornerShape(26.dp), ambientColor = accent, spotColor = accent)
-                .clip(RoundedCornerShape(26.dp))
-                .background(Brush.linearGradient(listOf(accent, lerpColor(accent, Color(0xFF1A1030), 0.55f), Color(0xFF120D1E))))
-                .drawWithContent {
-                    drawContent()
-                    drawCircle(Color.White.copy(alpha = 0.10f), size.minDimension * 0.55f, Offset(size.width * 1.02f, -size.height * 0.08f))
-                }
-                .padding(16.dp),
+            Modifier.weight(1f).fillMaxHeight().glass(24.dp, model.glassStrength).padding(horizontal = 16.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text(greeting, color = Color.White.copy(alpha = 0.85f), fontSize = 13.sp, fontWeight = FontWeight.W700)
+            Text(greeting, color = Color.White.copy(alpha = 0.6f), fontSize = 13.sp, fontWeight = FontWeight.W500)
             Column {
-                Text(time, color = Color.White, fontSize = 44.sp, fontWeight = FontWeight.W800, lineHeight = 46.sp, maxLines = 1)
-                Text(weekday, color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp, fontWeight = FontWeight.W600)
+                Text(time, color = Color.White, fontSize = 48.sp, fontWeight = FontWeight.W300, letterSpacing = (-1.5).sp,
+                    lineHeight = 50.sp, maxLines = 1)
+                Text(weekday, color = Color.White.copy(alpha = 0.75f), fontSize = 14.sp, fontWeight = FontWeight.W500)
             }
         }
-        // 2. Date + battery: glass tile with a battery ring
         Column(
-            Modifier.weight(1f).fillMaxHeight().glass(26.dp, model.glassStrength).padding(16.dp),
+            Modifier.weight(1f).fillMaxHeight().glass(24.dp, model.glassStrength).padding(horizontal = 16.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
-            Row(verticalAlignment = Alignment.Top) {
-                Column(Modifier.weight(1f)) {
-                    Text(month.uppercase(), color = accent, fontSize = 12.sp, fontWeight = FontWeight.W800, letterSpacing = 1.5.sp)
-                    Text(day, color = Color.White, fontSize = 40.sp, fontWeight = FontWeight.W800, lineHeight = 42.sp)
-                }
+            Column {
+                Text(month.uppercase(), color = accent, fontSize = 11.sp, fontWeight = FontWeight.W600, letterSpacing = 1.6.sp)
+                Text(day, color = Color.White, fontSize = 40.sp, fontWeight = FontWeight.W300, lineHeight = 42.sp)
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(22.dp)) {
                     Canvas(Modifier.fillMaxSize()) {
-                        val sw = size.minDimension * 0.14f
+                        val sw = size.minDimension * 0.16f
                         val inset = sw / 2
                         val arc = Size(size.width - sw, size.height - sw)
-                        drawArc(Color.White.copy(alpha = 0.18f), 0f, 360f, false, Offset(inset, inset), arc, style = Stroke(sw))
-                        drawArc(if (battery <= 15 && !charging) Color(0xFFFF5A5F) else Color(0xFF7CE38B), -90f, 360f * battery / 100f,
+                        drawArc(Color.White.copy(alpha = 0.16f), 0f, 360f, false, Offset(inset, inset), arc, style = Stroke(sw))
+                        drawArc(if (battery <= 15 && !charging) Color(0xFFFF6B6B) else Color.White, -90f, 360f * battery / 100f,
                             false, Offset(inset, inset), arc, style = Stroke(sw, cap = StrokeCap.Round))
                     }
-                    Text("$battery", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.W800)
                 }
-                Spacer(Modifier.width(10.dp))
-                Column {
-                    Text(if (charging) "Charging" else "Battery", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.W700)
-                    Text("$battery%", color = Color.White.copy(alpha = 0.65f), fontSize = 12.sp, fontWeight = FontWeight.W600)
-                }
+                Spacer(Modifier.width(8.dp))
+                Text(if (charging) "$battery% · Charging" else "$battery%", color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 13.sp, fontWeight = FontWeight.W500)
             }
         }
     }

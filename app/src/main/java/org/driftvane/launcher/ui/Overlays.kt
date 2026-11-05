@@ -233,7 +233,7 @@ fun FolderOverlay(model: LauncherModel, id: String, handler: ItemHandler) {
             value = name,
             onValueChange = { name = it; model.renameFolder(id, it) },
             singleLine = true,
-            textStyle = TextStyle(color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.W800, textAlign = TextAlign.Center),
+            textStyle = TextStyle(color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.W700, textAlign = TextAlign.Center),
             cursorBrush = SolidColor(model.accent),
             modifier = Modifier.fillMaxWidth().padding(bottom = 18.dp),
         )
@@ -284,7 +284,7 @@ fun WidgetPicker(model: LauncherModel, providers: List<AppWidgetProviderInfo>, o
         Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(12.dp)
             .glass(34.dp, 0.95f).swallowTaps().padding(18.dp)
     ) {
-        Text("Widgets", color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.W800)
+        Text("Widgets", color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.W700)
         Text("Tap one to add it to this page", color = Color(0xB3FFFFFF), fontSize = 14.sp, fontWeight = FontWeight.W500)
         Spacer(Modifier.height(14.dp))
         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {

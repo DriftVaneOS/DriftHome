@@ -70,7 +70,7 @@ fun LibIcon(app: AppEntry, size: Float, showLabel: Boolean, handler: ItemHandler
 @Composable
 private fun SectionTitle(text: String, accent: Color, count: Int? = null) {
     Row(Modifier.padding(start = 6.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(text.uppercase(), color = accent, fontSize = 12.sp, fontWeight = FontWeight.W800, letterSpacing = 2.sp)
+        Text(text.uppercase(), color = accent, fontSize = 12.sp, fontWeight = FontWeight.W600, letterSpacing = 2.sp)
         if (count != null) {
             Spacer(Modifier.width(8.dp))
             Text("$count", color = Color(0xFFA6ADB2), fontSize = 12.sp, fontWeight = FontWeight.W700)
@@ -105,11 +105,12 @@ fun AppLibrary(
     val accent = model.accent
     LazyColumn(
         Modifier.fillMaxSize().padding(horizontal = 16.dp),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 48.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
             Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("App Library", color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.W900, modifier = Modifier.weight(1f))
+                Text("App Library", color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.W700, modifier = Modifier.weight(1f))
                 Box(
                     Modifier.size(44.dp).background(accent.copy(alpha = 0.22f), CircleShape).clickable { onSettings() },
                     contentAlignment = Alignment.Center,
@@ -130,7 +131,7 @@ fun AppLibrary(
                 byLetter.forEach { (letter, apps) ->
                     item(key = "L$letter") {
                         Column(Modifier.fillMaxWidth().glass(22.dp, model.glassStrength).padding(vertical = 6.dp)) {
-                            Text("$letter", color = accent, fontSize = 14.sp, fontWeight = FontWeight.W900,
+                            Text("$letter", color = accent, fontSize = 14.sp, fontWeight = FontWeight.W700,
                                 modifier = Modifier.padding(start = 18.dp, top = 6.dp, bottom = 2.dp))
                             apps.forEach { app -> ListRow(app, model, handler) }
                         }
@@ -222,7 +223,7 @@ private fun CategoryCard(
                 }
             }
         }
-        Text(title, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.W800,
+        Text(title, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.W600,
             modifier = Modifier.padding(top = 6.dp, start = 6.dp))
     }
 }
@@ -248,7 +249,7 @@ fun CategorySheet(model: LauncherModel, title: String, handler: ItemHandler) {
     Column(
         Modifier.fillMaxWidth().padding(16.dp).glass(30.dp, 0.9f).padding(18.dp)
     ) {
-        Text(title, color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.W900)
+        Text(title, color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.W700)
         Spacer(Modifier.height(12.dp))
         IconRows(apps, 4, 54f, model, handler)
     }

@@ -4,6 +4,7 @@ import android.appwidget.AppWidgetProviderInfo
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animate
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -111,6 +112,17 @@ fun HomeScreen(
     val density = LocalDensity.current
     val screenW = with(density) { LocalConfiguration.current.screenWidthDp.dp.toPx() }
     val statusTop = WindowInsets.statusBars.getTop(density)
+    var pagerH by remember { mutableIntStateOf(0) }
+    var bottomBarH by remember { mutableIntStateOf(0) }
+    val bottomBarDp = with(density) { bottomBarH.toDp() }
+    // spread the 6 rows evenly between the status bar and the dock
+    LaunchedEffect(pagerH, bottomBarH, statusTop) {
+        if (pagerH > 0 && bottomBarH > 0) {
+            val top = statusTop + with(density) { 14.dp.toPx() }
+            val avail = with(density) { ((pagerH - top - bottomBarH) / model.rows).toDp() }
+            model.cellH = avail.coerceIn(92.dp, 132.dp)
+        }
+    }
     val drawerMode = model.libraryStyle == LibraryStyle.DRAWER
     val pageCount = model.pages.size + if (drawerMode) 0 else 1
     val pager = rememberPagerState { pageCount }
@@ -327,17 +339,14 @@ fun HomeScreen(
                     )
                 }
         ) {
-            Column(Modifier.fillMaxSize()) {
+            // Pages fill the whole screen; the search pill + dock float on top at the bottom and
+            // slide away when you swipe to the App Library, so the library gets the full screen.
+            Box(Modifier.fillMaxSize()) {
                 HorizontalPager(
                     state = pager,
                     userScrollEnabled = !drag.active,
                     beyondViewportPageCount = 2,
-                    modifier = Modifier.weight(1f).fillMaxWidth().onSizeChanged { sz ->
-                        // spread the 6 rows evenly over the space between the status bar and the dock
-                        val top = statusTop + with(density) { 14.dp.toPx() }
-                        val avail = with(density) { ((sz.height - top) / model.rows).toDp() }
-                        model.cellH = avail.coerceIn(96.dp, 132.dp)
-                    },
+                    modifier = Modifier.fillMaxSize().onSizeChanged { sz -> pagerH = sz.height },
                 ) { page ->
                     if (page < model.pages.size) {
                         val pageTopLeft = remember { arrayOf(Offset.Zero) }
@@ -356,7 +365,7 @@ fun HomeScreen(
                                     )
                                 }
                             )
-                            Column(Modifier.fillMaxSize().statusBarsPadding().padding(top = 8.dp)) {
+                            Column(Modifier.fillMaxSize().statusBarsPadding().padding(top = 8.dp, bottom = bottomBarDp)) {
                                 HomePage(model, page, editMode, drag, handler, widget)
                             }
                         }
@@ -369,6 +378,16 @@ fun HomeScreen(
                         }
                     }
                 }
+                Column(
+                    Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                        .onSizeChanged { bottomBarH = it.height }
+                        .graphicsLayer {
+                            val lib = if (drawerMode || drag.active) 0f
+                            else (pager.currentPage + pager.currentPageOffsetFraction - (model.pages.size - 1)).coerceIn(0f, 1f)
+                            translationY = (bottomBarH + 40f) * lib
+                            alpha = 1f - lib
+                        }
+                ) {
                 Box(Modifier.fillMaxWidth().height(48.dp), contentAlignment = Alignment.Center) {
                     androidx.compose.animation.AnimatedVisibility(
                         model.showDots && !editMode, enter = fadeIn(), exit = fadeOut(),
@@ -385,13 +404,14 @@ fun HomeScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Pill("+ Widget", Color(0x99262330)) { widgetPicker = true }
+                            Pill("+ Widget", Color(0x66FFFFFF).copy(alpha = 0.18f)) { widgetPicker = true }
                             Pill("Done", model.accent) { editMode = false }
                         }
                     }
                 }
                 if (model.showDock) Dock(model, editMode, drag, handler)
                 else Spacer(Modifier.navigationBarsPadding().height(12.dp))
+                }
             }
 
         }
@@ -502,7 +522,7 @@ private fun Pill(text: String, color: Color, onClick: () -> Unit) {
     Box(
         Modifier.background(color, RoundedCornerShape(50)).clickable(onClick = onClick)
             .padding(horizontal = 18.dp, vertical = 10.dp)
-    ) { Text(text, color = Color.White, fontWeight = FontWeight.W800, fontSize = 15.sp) }
+    ) { Text(text, color = Color.White, fontWeight = FontWeight.W600, fontSize = 15.sp) }
 }
 
 /**

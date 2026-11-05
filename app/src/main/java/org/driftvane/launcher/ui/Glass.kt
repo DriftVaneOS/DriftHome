@@ -83,14 +83,14 @@ fun Modifier.glass(radius: Dp = 28.dp, alpha: Float = 0.72f): Modifier {
         .background(Color(0xFF15131C).copy(alpha = 0.30f + 0.38f * a))
         .background(
             Brush.verticalGradient(
-                listOf(Color.White.copy(alpha = 0.16f * a), Color.White.copy(alpha = 0.04f * a))
+                listOf(Color.White.copy(alpha = 0.10f * a), Color.White.copy(alpha = 0.03f * a))
             )
         )
         .drawWithContent {
             // specular sheen in the top-left corner
             drawRect(
                 Brush.radialGradient(
-                    listOf(Color.White.copy(alpha = 0.20f * a), Color.Transparent),
+                    listOf(Color.White.copy(alpha = 0.08f * a), Color.Transparent),
                     center = Offset(size.width * 0.18f, 0f),
                     radius = maxOf(size.width, size.height) * 0.75f,
                 )
@@ -98,13 +98,13 @@ fun Modifier.glass(radius: Dp = 28.dp, alpha: Float = 0.72f): Modifier {
             drawContent()
         }
         .border(
-            1.2.dp,
+            0.8.dp,
             Brush.linearGradient(
                 listOf(
-                    Color.White.copy(alpha = 0.55f),
-                    Color.White.copy(alpha = 0.08f),
-                    Color.White.copy(alpha = 0.06f),
                     Color.White.copy(alpha = 0.30f),
+                    Color.White.copy(alpha = 0.06f),
+                    Color.White.copy(alpha = 0.04f),
+                    Color.White.copy(alpha = 0.16f),
                 ),
                 start = Offset.Zero,
                 end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY),

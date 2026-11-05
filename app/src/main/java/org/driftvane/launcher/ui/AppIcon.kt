@@ -46,10 +46,10 @@ import org.driftvane.launcher.isFolder
 fun labelStyle(size: Float = 12f) = TextStyle(
     color = Color.White,
     fontSize = size.sp,
-    fontWeight = FontWeight.W600,
+    fontWeight = FontWeight.W500,
     textAlign = TextAlign.Center,
-    letterSpacing = 0.1.sp,
-    shadow = Shadow(Color(0x8C000000), Offset(0f, 1.5f), 8f),
+    letterSpacing = 0.sp,
+    shadow = Shadow(Color(0x66000000), Offset(0f, 1f), 6f),
 )
 
 val LabelStyle = labelStyle()
@@ -60,7 +60,7 @@ fun AppTile(app: AppEntry, size: Float, modifier: Modifier = Modifier) {
     val shape = LocalIconShape.current
     Box(
         modifier.size(size.dp)
-            .shadow((size * 0.14f).dp, shape, ambientColor = Color(0x66000000), spotColor = Color(0x99000000))
+            .shadow((size * 0.06f).dp, shape, ambientColor = Color(0x33000000), spotColor = Color(0x59000000))
             .clip(shape)
     ) {
         Image(app.icon, contentDescription = app.label, modifier = Modifier.fillMaxSize())
@@ -73,7 +73,7 @@ fun FolderTile(model: LauncherModel, folder: Folder, size: Float, modifier: Modi
     val shape = LocalIconShape.current
     Box(
         modifier.size(size.dp)
-            .shadow((size * 0.12f).dp, shape, ambientColor = Color(0x55000000), spotColor = Color(0x88000000))
+            .shadow((size * 0.05f).dp, shape, ambientColor = Color(0x33000000), spotColor = Color(0x4D000000))
             .glassShape(shape, model.glassStrength)
             .padding((size * 0.13f).dp),
     ) {
@@ -102,11 +102,11 @@ fun HomeItem(
     onBounds: (Rect) -> Unit = {},
 ) {
     val scale by animateFloatAsState(
-        if (pressed) 0.88f else 1f,
-        spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessMediumLow),
+        if (pressed) 0.93f else 1f,
+        spring(dampingRatio = 0.78f, stiffness = Spring.StiffnessMedium),
         label = "press",
     )
-    val dim by animateFloatAsState(if (pressed) 0.82f else 1f, spring(stiffness = Spring.StiffnessMedium), label = "dim")
+    val dim by animateFloatAsState(if (pressed) 0.9f else 1f, spring(stiffness = Spring.StiffnessMedium), label = "dim")
     val label = if (isFolder(key)) model.folders[key]?.name ?: "" else model.apps[key]?.label ?: ""
     Column(
         modifier.graphicsLayer { scaleX = scale; scaleY = scale; alpha = dim },
@@ -133,7 +133,7 @@ fun TapIcon(app: AppEntry, size: Float, showLabel: Boolean, onClick: (Rect) -> U
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val bounds = remember { arrayOf(Rect.Zero) }
-    val scale by animateFloatAsState(if (pressed) 0.88f else 1f, spring(0.5f, Spring.StiffnessMediumLow), label = "p")
+    val scale by animateFloatAsState(if (pressed) 0.93f else 1f, spring(0.78f, Spring.StiffnessMedium), label = "p")
     Column(
         Modifier.graphicsLayer { scaleX = scale; scaleY = scale }
             .clickable(interaction, indication = null) { onClick(bounds[0]) },

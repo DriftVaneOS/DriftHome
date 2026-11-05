@@ -108,10 +108,10 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
     private val launcherApps = context.getSystemService(LauncherApps::class.java)
     private val prefs = context.getSharedPreferences("drifthome", Context.MODE_PRIVATE)
 
-    // v0.3.2 look: 4 roomy columns and bigger icons, applied once (users can change it after).
+    // v0.3.4 look: 5 columns with XL icons, applied once (users can change it after).
     init {
-        if (prefs.getInt("look", 0) < 3) {
-            prefs.edit().putInt("look", 3).putInt("columns", 4).putFloat("icon_scale", 1.1f)
+        if (prefs.getInt("look", 0) < 4) {
+            prefs.edit().putInt("look", 4).putInt("columns", 5).putFloat("icon_scale", 1.26f)
                 .putFloat("label_size", 12f).putBoolean("pending_reflow", true).apply()
         }
     }
@@ -128,9 +128,9 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         private set
     var showLabels by mutableStateOf(prefs.getBoolean("labels", true))
         private set
-    var iconScale by mutableStateOf(prefs.getFloat("icon_scale", 1.1f))
+    var iconScale by mutableStateOf(prefs.getFloat("icon_scale", 1.26f))
         private set
-    var columns by mutableStateOf(prefs.getInt("columns", 4))
+    var columns by mutableStateOf(prefs.getInt("columns", 5))
         private set
     var showGlance by mutableStateOf(prefs.getBoolean("glance", true))
         private set

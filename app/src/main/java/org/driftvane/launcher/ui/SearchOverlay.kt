@@ -106,7 +106,7 @@ fun SearchOverlay(model: LauncherModel, onLaunch: (String, Rect) -> Unit, onClos
             ) {
                 Text(
                     if (query.isBlank()) "SUGGESTED" else "APPS",
-                    color = model.accent, fontSize = 12.sp, fontWeight = FontWeight.W800, letterSpacing = 2.sp,
+                    color = model.accent, fontSize = 12.sp, fontWeight = FontWeight.W600, letterSpacing = 2.sp,
                     modifier = Modifier.padding(start = 6.dp, bottom = 10.dp),
                 )
                 LazyVerticalGrid(
@@ -126,7 +126,7 @@ fun SearchOverlay(model: LauncherModel, onLaunch: (String, Rect) -> Unit, onClos
                         Modifier.fillMaxWidth().background(model.accent.copy(alpha = 0.18f), androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
                             .clickable { webSearch() }.padding(14.dp)
                     ) {
-                        Text("Search the web for “$query”", color = Color.White, fontWeight = FontWeight.W800, fontSize = 15.sp)
+                        Text("Search the web for “$query”", color = Color.White, fontWeight = FontWeight.W600, fontSize = 15.sp)
                     }
                 }
             }

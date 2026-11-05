@@ -200,7 +200,7 @@ private fun WidgetBox(
                     Modifier.align(Alignment.TopEnd).offset(8.dp, (-8).dp).size(30.dp)
                         .shadow(6.dp, CircleShape).glassShape(CircleShape, 0.9f).clickable { model.toggleWidgetHalf(w.id) },
                     contentAlignment = Alignment.Center,
-                ) { Text(if (w.half) "⇲" else "⇆", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.W800) }
+                ) { Text(if (w.half) "⇲" else "⇆", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.W600) }
                 // resize handle: drag up/down
                 Box(
                     Modifier.align(Alignment.BottomCenter).offset(y = 10.dp).width(64.dp).height(22.dp)
@@ -238,7 +238,7 @@ private fun IconGrid(
     val cellHdp = cellHeight(model)
     val tick = LocalResumeTick.current
     BoxWithConstraints(
-        Modifier.fillMaxWidth().padding(horizontal = 14.dp).height(cellHdp * rows).clipToBounds()
+        Modifier.fillMaxWidth().padding(horizontal = 6.dp).height(cellHdp * rows).clipToBounds()
     ) {
         val density = LocalDensity.current
         val cellW = constraints.maxWidth.toFloat() / cols
@@ -253,7 +253,7 @@ private fun IconGrid(
         val angle = if (editMode) wiggleAngle() else 0f
         val order = previewOrder(items, page, drag.key, drag.hover)
         val ontoTarget = (drag.hover as? Hover.Onto)?.takeIf { it.page == page }?.target
-        val iconSize = 60f * model.iconScale * (if (cols >= 6) 0.8f else if (cols == 5) 0.9f else 1f)
+        val iconSize = 60f * model.iconScale * (if (cols >= 6) 0.84f else if (cols == 5) 0.94f else 1f)
 
         order.forEachIndexed { index, itemKey ->
             if (!isFolder(itemKey) && model.apps[itemKey] == null) return@forEachIndexed
