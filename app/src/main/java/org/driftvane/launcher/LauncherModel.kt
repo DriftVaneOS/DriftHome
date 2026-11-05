@@ -106,12 +106,12 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
 
     // the current default look, applied once on update (users can change it after)
     init {
-        if (prefs.getInt("look", 0) < 7) {
-            // v0.6 "Tonal dashboard" look
-            prefs.edit().putInt("look", 7).putInt("columns", 5).putFloat("icon_scale", 1.1f)
-                .putString("icon_theme", IconTheme.ORIGINAL).putString("icon_shape", "circle")
-                .putString("dock_style", "tonal").putBoolean("labels", false).putBoolean("glance", true)
-                .putString("top_style", "dashboard").putBoolean("grid_panel", true)
+        if (prefs.getInt("look", 0) < 8) {
+            // "Bold clock" look (the DriftVaneOS default)
+            prefs.edit().putInt("look", 8).putInt("columns", 5).putFloat("icon_scale", 1.04f)
+                .putString("icon_theme", IconTheme.OUTLINE).putString("icon_shape", "rounded")
+                .putString("dock_style", "line").putBoolean("labels", false).putBoolean("glance", true)
+                .putString("top_style", "bold").putBoolean("grid_panel", false)
                 .putString("library", LibraryStyle.CARDS)
                 .putBoolean("pending_reflow", true).apply()
         }
@@ -129,17 +129,17 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         private set
     var showLabels by mutableStateOf(prefs.getBoolean("labels", false))
         private set
-    var iconScale by mutableStateOf(prefs.getFloat("icon_scale", 1.1f))
+    var iconScale by mutableStateOf(prefs.getFloat("icon_scale", 1.04f))
         private set
     var columns by mutableStateOf(prefs.getInt("columns", 5))
         private set
     var showGlance by mutableStateOf(prefs.getBoolean("glance", true))
         private set
     /** What sits at the top of the first page: "dashboard" (tonal cards) or "bold" (big clock). */
-    var topStyle by mutableStateOf(prefs.getString("top_style", "dashboard")!!)
+    var topStyle by mutableStateOf(prefs.getString("top_style", "bold")!!)
         private set
     /** Solid tonal panel behind the app grid. */
-    var gridPanel by mutableStateOf(prefs.getBoolean("grid_panel", true))
+    var gridPanel by mutableStateOf(prefs.getBoolean("grid_panel", false))
         private set
     var showDots by mutableStateOf(prefs.getBoolean("dots", true))
         private set
@@ -151,11 +151,11 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         private set
     var glassStrength by mutableStateOf(prefs.getFloat("glass", 0.72f))
         private set
-    var iconShape by mutableStateOf(prefs.getString("icon_shape", "circle")!!)
+    var iconShape by mutableStateOf(prefs.getString("icon_shape", "rounded")!!)
         private set
-    var iconTheme by mutableStateOf(prefs.getString("icon_theme", IconTheme.ORIGINAL)!!)
+    var iconTheme by mutableStateOf(prefs.getString("icon_theme", IconTheme.OUTLINE)!!)
         private set
-    var dockStyle by mutableStateOf(prefs.getString("dock_style", "tonal")!!)
+    var dockStyle by mutableStateOf(prefs.getString("dock_style", "line")!!)
         private set
     var haptics by mutableStateOf(prefs.getBoolean("haptics", true))
         private set
@@ -167,7 +167,15 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         private set
 
     val accent: Color get() = Accents[accentIndex.coerceIn(0, Accents.lastIndex)]
-    val rows = 6
+    /** Grid rows per page; HomeScreen fits as many as the screen has room for, down to the dock. */
+    var rows by mutableStateOf(prefs.getInt("rows", 6).coerceIn(5, 8))
+        private set
+    fun changeRows(r: Int) {
+        val n = r.coerceIn(5, 8)
+        if (n == rows) return
+        rows = n; prefs.edit().putInt("rows", n).apply()
+        if (loaded) reflowAll()
+    }
 
     /** Height of one grid row; HomeScreen sets it so the 6 rows fill the screen evenly. */
     var cellH by mutableStateOf(112.dp)

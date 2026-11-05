@@ -2,6 +2,13 @@
 
 The DriftVaneOS launcher. Pages of apps, a floating glass dock, folders, widgets and a smart App Library, styled to match AlexLMP.
 
+## v0.7
+
+- Bold clock is the default look again (Tonal dashboard stays as an option in Home settings).
+- The grid fills the screen down to the dock: as many rows as fit, so you can drop apps right
+  above the dock.
+- Category view: tapping an app opens it.
+
 ## v0.6: Tonal dashboard
 
 - New default look: a solid tonal card with the time and date at the top of the first page,

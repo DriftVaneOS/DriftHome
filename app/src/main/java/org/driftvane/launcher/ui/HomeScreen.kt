@@ -120,8 +120,12 @@ fun HomeScreen(
     LaunchedEffect(pagerH, bottomBarH, statusTop) {
         if (pagerH > 0 && bottomBarH > 0) {
             val top = statusTop + with(density) { 14.dp.toPx() }
-            val avail = with(density) { ((pagerH - top - bottomBarH) / model.rows).toDp() }
-            model.cellH = avail.coerceIn(92.dp, 132.dp)
+            val availPx = pagerH - top - bottomBarH
+            // as many rows as fit (about 100dp each), so the grid reaches right down to the dock
+            val fit = (availPx / with(density) { 100.dp.toPx() }).toInt()
+            model.changeRows(fit)
+            val avail = with(density) { (availPx / model.rows).toDp() }
+            model.cellH = avail.coerceIn(80.dp, 140.dp)
         }
     }
     val drawerMode = model.libraryStyle == LibraryStyle.DRAWER

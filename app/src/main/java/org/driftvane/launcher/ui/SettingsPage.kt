@@ -120,7 +120,7 @@ fun SettingsPage(model: LauncherModel, onClose: () -> Unit) {
                             Group { ActionRow("Reset home screen layout", Color(0xFFFF6B78)) { model.resetLayout(); onClose() } }
                         }
                         item {
-                            Text("DriftHome 0.6 · made for DriftVaneOS", color = Color(0x80FFFFFF), fontSize = 12.sp,
+                            Text("DriftHome 0.7 · made for DriftVaneOS", color = Color(0x80FFFFFF), fontSize = 12.sp,
                                 fontWeight = FontWeight.W600, modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp),
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                         }
@@ -156,7 +156,7 @@ fun SettingsPage(model: LauncherModel, onClose: () -> Unit) {
                     SPage.HOME -> {
                         item {
                             Group(title = "Top of first page") {
-                                listOf("dashboard" to "Tonal dashboard", "bold" to "Bold clock").forEachIndexed { i, (id, n) ->
+                                listOf("bold" to "Bold clock", "dashboard" to "Tonal dashboard").forEachIndexed { i, (id, n) ->
                                     CheckRow(n, if (id == "dashboard") "Time card, now playing and battery tiles" else "Huge two-tone clock with now playing",
                                         model.topStyle == id, model.accent, last = i == 1) { model.changeTopStyle(id) }
                                 }
