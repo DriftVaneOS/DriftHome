@@ -25,6 +25,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -107,6 +108,14 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
     private val launcherApps = context.getSystemService(LauncherApps::class.java)
     private val prefs = context.getSharedPreferences("drifthome", Context.MODE_PRIVATE)
 
+    // v0.3.2 look: 4 roomy columns and bigger icons, applied once (users can change it after).
+    init {
+        if (prefs.getInt("look", 0) < 3) {
+            prefs.edit().putInt("look", 3).putInt("columns", 4).putFloat("icon_scale", 1.1f)
+                .putFloat("label_size", 12f).putBoolean("pending_reflow", true).apply()
+        }
+    }
+
     val apps = mutableStateMapOf<String, AppEntry>()
     val dock = mutableStateListOf<String>()
     val pages = mutableStateListOf<Page>()
@@ -119,9 +128,9 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         private set
     var showLabels by mutableStateOf(prefs.getBoolean("labels", true))
         private set
-    var iconScale by mutableStateOf(prefs.getFloat("icon_scale", 1.24f))
+    var iconScale by mutableStateOf(prefs.getFloat("icon_scale", 1.1f))
         private set
-    var columns by mutableStateOf(prefs.getInt("columns", 5))
+    var columns by mutableStateOf(prefs.getInt("columns", 4))
         private set
     var showGlance by mutableStateOf(prefs.getBoolean("glance", true))
         private set
@@ -152,6 +161,9 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
 
     val accent: Color get() = Accents[accentIndex.coerceIn(0, Accents.lastIndex)]
     val rows = 6
+
+    /** Height of one grid row; HomeScreen sets it so the 6 rows fill the screen evenly. */
+    var cellH by mutableStateOf(112.dp)
     private val glanceRows = 2
 
     fun changeAccent(i: Int) {
@@ -220,6 +232,10 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
             apps.clear()
             list.forEach { apps[it.key] = it }
             syncLayout()
+            if (prefs.getBoolean("pending_reflow", false)) {
+                prefs.edit().remove("pending_reflow").apply()
+                reflowAll()
+            }
             loaded = true
         }
     }

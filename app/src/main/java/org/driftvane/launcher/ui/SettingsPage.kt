@@ -92,7 +92,7 @@ fun SettingsPage(model: LauncherModel, onClose: () -> Unit) {
                         item {
                             Group {
                                 NavRow("Icons", "Shape, theme, size", G.SHAPE, Color(0xFF8CD0F0)) { page = SPage.ICONS }
-                                NavRow("Home screen", "Grid, clock card, page dots", G.GRID, Color(0xFFFF8A3D)) { page = SPage.HOME }
+                                NavRow("Home screen", "Grid, clock card, search pill", G.GRID, Color(0xFFFF8A3D)) { page = SPage.HOME }
                                 NavRow("Dock", dockName(model.dockStyle), G.DOCK, Color(0xFF7CD992)) { page = SPage.DOCK }
                                 NavRow("App Library", libraryName(model.libraryStyle), G.LIBRARY, Color(0xFFF09CE2), last = true) { page = SPage.LIBRARY }
                             }
@@ -119,7 +119,7 @@ fun SettingsPage(model: LauncherModel, onClose: () -> Unit) {
                             Group { ActionRow("Reset home screen layout", Color(0xFFFF6B78)) { model.resetLayout(); onClose() } }
                         }
                         item {
-                            Text("DriftHome 0.3.1 · made for DriftVaneOS", color = Color(0x80FFFFFF), fontSize = 12.sp,
+                            Text("DriftHome 0.3.2 · made for DriftVaneOS", color = Color(0x80FFFFFF), fontSize = 12.sp,
                                 fontWeight = FontWeight.W600, modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp),
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                         }
@@ -142,7 +142,7 @@ fun SettingsPage(model: LauncherModel, onClose: () -> Unit) {
                         }
                         item {
                             Group(title = "Size") {
-                                Seg(listOf("S" to 0.86f, "M" to 1f, "L" to 1.12f, "XL" to 1.24f), model.iconScale, model.accent) { model.changeIconScale(it) }
+                                Seg(listOf("S" to 0.95f, "M" to 1.1f, "L" to 1.22f, "XL" to 1.32f), model.iconScale, model.accent) { model.changeIconScale(it) }
                             }
                         }
                         item {
@@ -161,7 +161,7 @@ fun SettingsPage(model: LauncherModel, onClose: () -> Unit) {
                         item {
                             Group {
                                 ToggleRow("Clock & battery card", model.showGlance, model.accent) { model.changeGlance(it) }
-                                ToggleRow("Page dots", model.showDots, model.accent, last = true) { model.changeDots(it) }
+                                ToggleRow("Search pill & page dots", model.showDots, model.accent, last = true) { model.changeDots(it) }
                             }
                         }
                     }

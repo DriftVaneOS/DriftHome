@@ -81,7 +81,7 @@ interface ItemHandler {
 /** Bumped every time you come back home, so icons can cascade in. */
 val LocalResumeTick = compositionLocalOf { 0 }
 
-fun cellHeight(model: LauncherModel): Dp = if (model.showLabels) 104.dp else 86.dp
+fun cellHeight(model: LauncherModel): Dp = if (model.showLabels) model.cellH else model.cellH * 0.88f
 
 /** Wiggle shared by everything in edit mode. */
 @Composable
@@ -238,7 +238,7 @@ private fun IconGrid(
     val cellHdp = cellHeight(model)
     val tick = LocalResumeTick.current
     BoxWithConstraints(
-        Modifier.fillMaxWidth().height(cellHdp * rows).clipToBounds()
+        Modifier.fillMaxWidth().padding(horizontal = 14.dp).height(cellHdp * rows).clipToBounds()
     ) {
         val density = LocalDensity.current
         val cellW = constraints.maxWidth.toFloat() / cols
@@ -253,7 +253,7 @@ private fun IconGrid(
         val angle = if (editMode) wiggleAngle() else 0f
         val order = previewOrder(items, page, drag.key, drag.hover)
         val ontoTarget = (drag.hover as? Hover.Onto)?.takeIf { it.page == page }?.target
-        val iconSize = 60f * model.iconScale * (if (cols >= 6) 0.86f else if (cols == 5) 0.94f else 1f)
+        val iconSize = 60f * model.iconScale * (if (cols >= 6) 0.8f else if (cols == 5) 0.9f else 1f)
 
         order.forEachIndexed { index, itemKey ->
             if (!isFolder(itemKey) && model.apps[itemKey] == null) return@forEachIndexed

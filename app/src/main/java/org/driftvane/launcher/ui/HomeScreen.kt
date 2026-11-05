@@ -14,6 +14,7 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
@@ -36,6 +37,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -62,6 +65,10 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.foundation.layout.size
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -103,6 +110,7 @@ fun HomeScreen(
     val buzz: (HapticFeedbackType) -> Unit = { t -> if (model.haptics) hapticsRaw.performHapticFeedback(t) }
     val density = LocalDensity.current
     val screenW = with(density) { LocalConfiguration.current.screenWidthDp.dp.toPx() }
+    val statusTop = WindowInsets.statusBars.getTop(density)
     val drawerMode = model.libraryStyle == LibraryStyle.DRAWER
     val pageCount = model.pages.size + if (drawerMode) 0 else 1
     val pager = rememberPagerState { pageCount }
@@ -324,7 +332,12 @@ fun HomeScreen(
                     state = pager,
                     userScrollEnabled = !drag.active,
                     beyondViewportPageCount = 2,
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    modifier = Modifier.weight(1f).fillMaxWidth().onSizeChanged { sz ->
+                        // spread the 6 rows evenly over the space between the status bar and the dock
+                        val top = statusTop + with(density) { 14.dp.toPx() }
+                        val avail = with(density) { ((sz.height - top) / model.rows).toDp() }
+                        model.cellH = avail.coerceIn(96.dp, 132.dp)
+                    },
                 ) { page ->
                     if (page < model.pages.size) {
                         val pageTopLeft = remember { arrayOf(Offset.Zero) }
@@ -356,10 +369,12 @@ fun HomeScreen(
                         }
                     }
                 }
-                Box(Modifier.fillMaxWidth().height(44.dp), contentAlignment = Alignment.Center) {
+                Box(Modifier.fillMaxWidth().height(48.dp), contentAlignment = Alignment.Center) {
                     androidx.compose.animation.AnimatedVisibility(
                         model.showDots && !editMode, enter = fadeIn(), exit = fadeOut(),
-                    ) { PageDots(pageCount, pager.currentPage, model.accent) }
+                    ) {
+                        SearchPill(model, pageCount, pager.currentPage, pager.isScrollInProgress) { searchOpen = true }
+                    }
                     androidx.compose.animation.AnimatedVisibility(
                         editMode,
                         enter = fadeIn() + scaleIn(initialScale = 0.85f),
@@ -490,14 +505,59 @@ private fun Pill(text: String, color: Color, onClick: () -> Unit) {
     ) { Text(text, color = Color.White, fontWeight = FontWeight.W800, fontSize = 15.sp) }
 }
 
+/**
+ * DriftHome's pill above the dock: says "Search" (tap to search), and turns into page dots
+ * while you swipe between pages.
+ */
+@Composable
+private fun SearchPill(model: LauncherModel, count: Int, current: Int, swiping: Boolean, onSearch: () -> Unit) {
+    var showDots by remember { mutableStateOf(false) }
+    LaunchedEffect(swiping, current) {
+        if (swiping) showDots = true else { delay(900); showDots = false }
+    }
+    Box(
+        Modifier.height(34.dp).glass(17.dp, model.glassStrength * 0.8f)
+            .clickable(remember { MutableInteractionSource() }, indication = null) { onSearch() }
+            .padding(horizontal = 16.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        androidx.compose.animation.AnimatedContent(
+            showDots && count > 1,
+            transitionSpec = {
+                (fadeIn(tween(160)) + scaleIn(initialScale = 0.9f)) togetherWith (fadeOut(tween(120)) + scaleOut(targetScale = 0.9f))
+            },
+            label = "pill",
+        ) { dots ->
+            if (dots) {
+                Box(Modifier.width((count * 13 + 10).dp), contentAlignment = Alignment.Center) {
+                    PageDots(count, current, model.accent)
+                }
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Canvas(Modifier.size(14.dp)) {
+                        val r = size.minDimension * 0.34f
+                        val c = androidx.compose.ui.geometry.Offset(size.width * 0.42f, size.height * 0.42f)
+                        drawCircle(Color.White, r, c, style = Stroke(size.minDimension * 0.13f))
+                        drawLine(Color.White, c + androidx.compose.ui.geometry.Offset(r * 0.72f, r * 0.72f),
+                            androidx.compose.ui.geometry.Offset(size.width * 0.92f, size.height * 0.92f),
+                            size.minDimension * 0.14f, androidx.compose.ui.graphics.StrokeCap.Round)
+                    }
+                    Spacer(Modifier.width(7.dp))
+                    Text("Search", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.W600)
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun PageDots(count: Int, current: Int, accent: Color) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
         repeat(count) { i ->
-            val w by animateDpAsState(if (i == current) 22.dp else 7.dp, spring(dampingRatio = 0.6f, stiffness = 500f), label = "dot")
+            val w by animateDpAsState(if (i == current) 16.dp else 7.dp, spring(dampingRatio = 0.6f, stiffness = 500f), label = "dot")
             Box(
                 Modifier.padding(horizontal = 3.dp).height(7.dp).width(w)
-                    .background(if (i == current) accent else Color(0x66FFFFFF), RoundedCornerShape(50))
+                    .background(if (i == current) Color.White else Color(0x59FFFFFF), RoundedCornerShape(50))
             )
         }
     }
