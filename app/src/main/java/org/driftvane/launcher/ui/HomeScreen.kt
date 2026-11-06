@@ -238,7 +238,9 @@ fun HomeScreen(
             override fun dragStart(key: String, source: Source, at: Offset) {
                 if (model.lockLayout) return
                 buzz(HapticFeedbackType.LongPress)
-                menuKey = null; openCategory = null
+                // an open category stays (invisible) until the drag ends, so a drag that started
+                // in it keeps going; dragEnd closes it
+                menuKey = null
                 editMode = true
                 drag.start(key, source, at)
                 if (source is Source.Library && pager.currentPage >= model.pages.size) {
@@ -268,14 +270,14 @@ fun HomeScreen(
                 drag.end()
                 model.tidy()
                 if (src is Source.InFolder) openFolder = null
-                if (src is Source.Library) drawerOpen = false
+                if (src is Source.Library) { drawerOpen = false; openCategory = null }
             }
         }
     }
 
     // Safety net: leaving edit mode always clears any drag that didn't finish.
     LaunchedEffect(editMode) {
-        if (!editMode && drag.active) { drag.end(); model.tidy() }
+        if (!editMode && drag.active) { drag.end(); model.tidy(); openCategory = null }
     }
 
     // Drag to a screen edge and hold: flip to the next page (a new page appears at the end).

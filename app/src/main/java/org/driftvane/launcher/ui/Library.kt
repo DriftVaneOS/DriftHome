@@ -1,5 +1,11 @@
 package org.driftvane.launcher.ui
 
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.drag
+import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.rememberScrollState
@@ -277,11 +283,8 @@ fun CategorySheet(model: LauncherModel, title: String, handler: ItemHandler) {
                 Row(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
                     row.forEach { app ->
                         Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                            // plain tap target: tap opens the app (hold-and-drag stays in the main library)
-                            TapIcon(app, 54f, true) { b ->
-                                android.util.Log.i("DriftHome", "category tap ${app.key}")
-                                handler.tap(app.key, b)
-                            }
+                            // tap opens the app; hold and drag puts it on the home screen
+                            SheetDragIcon(app, handler)
                         }
                     }
                     repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
@@ -289,6 +292,46 @@ fun CategorySheet(model: LauncherModel, title: String, handler: ItemHandler) {
             }
         }
     }
+}
+
+/**
+ * An app in an opened category: tap opens it (the proven plain click), hold shows the app menu,
+ * hold and drag moves it to the home screen. The hold detector runs before the click, and eats
+ * the touch once it's a hold, so a hold never also opens the app.
+ */
+@Composable
+private fun SheetDragIcon(app: AppEntry, handler: ItemHandler) {
+    val topLeft = remember { arrayOf(Offset.Zero) }
+    val bounds = remember { arrayOf(Rect.Zero) }
+    TapIcon(
+        app, 54f, true,
+        modifier = Modifier
+            .onGloballyPositioned { topLeft[0] = it.positionInRoot(); bounds[0] = it.boundsInWindow() }
+            .pointerInput(app.key) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val lp = awaitLongPressOrCancellation(down.id) ?: return@awaitEachGesture
+                    lp.consume()
+                    val start = lp.position
+                    val slop = viewConfiguration.touchSlop
+                    var dragging = false
+                    try {
+                        drag(lp.id) { c ->
+                            if (!dragging && (c.position - start).getDistance() > slop) {
+                                dragging = true
+                                handler.dragStart(app.key, Source.Library, topLeft[0] + c.position)
+                            }
+                            if (dragging) handler.dragMove(topLeft[0] + c.position)
+                            c.consume()
+                        }
+                        currentEvent.changes.forEach { it.consume() }
+                        if (!dragging) handler.menu(app.key, bounds[0])
+                    } finally {
+                        if (dragging) handler.dragEnd()
+                    }
+                }
+            },
+    ) { b -> handler.tap(app.key, b) }
 }
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)

@@ -132,14 +132,15 @@ fun HomeItem(
 
 /** Simple tappable icon for search results and lists. */
 @Composable
-fun TapIcon(app: AppEntry, size: Float, showLabel: Boolean, onClick: (Rect) -> Unit) {
+fun TapIcon(app: AppEntry, size: Float, showLabel: Boolean, modifier: Modifier = Modifier, onClick: (Rect) -> Unit) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val bounds = remember { arrayOf(Rect.Zero) }
     val scale by animateFloatAsState(if (pressed) 0.93f else 1f, spring(0.78f, Spring.StiffnessMedium), label = "p")
     Column(
         Modifier.graphicsLayer { scaleX = scale; scaleY = scale }
-            .clickable(interaction, indication = null) { onClick(bounds[0]) },
+            .clickable(interaction, indication = null) { onClick(bounds[0]) }
+            .then(modifier),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         AppTile(app, size, Modifier.onGloballyPositioned { bounds[0] = it.boundsInWindow() })
