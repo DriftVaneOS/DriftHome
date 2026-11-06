@@ -53,6 +53,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -328,6 +329,20 @@ fun HomeScreen(
     val pull = with(density) { 90.dp.toPx() }
     val onLibrary = pager.currentPage >= model.pages.size
 
+    // App Library background: blur the wallpaper behind the window as you swipe to the
+    // library (Android's window blur; skipped when the system has blur off, e.g. battery saver).
+    val maxBlurPx = with(density) { 36.dp.toPx() }
+    LaunchedEffect(pager, drawerMode) {
+        snapshotFlow {
+            if (drawerMode) 0 else {
+                val lib = (pager.currentPage + pager.currentPageOffsetFraction - (model.pages.size - 1)).coerceIn(0f, 1f)
+                ((lib * maxBlurPx) / 4f).toInt() * 4
+            }
+        }.collect { r ->
+            runCatching { (actions as? android.app.Activity)?.window?.setBackgroundBlurRadius(r) }
+        }
+    }
+
     CompositionLocalProvider(
         LocalIconShape provides IconShapes.shape(model.iconShape),
         LocalIconBorder provides (if (model.iconTheme == org.driftvane.launcher.IconTheme.OUTLINE) soften(model.accent, 0.35f).copy(alpha = 0.9f) else null),
@@ -402,7 +417,8 @@ fun HomeScreen(
                             }
                         }
                     } else {
-                        Box(Modifier.fillMaxSize().then(frameBackground(model, null)).statusBarsPadding()) {
+                        // dark tint behind the library (with the blur above, or on its own if blur is off)
+                        Box(Modifier.fillMaxSize().background(Color(0x8C05070C)).then(frameBackground(model, null)).statusBarsPadding()) {
                             AppLibrary(model, handler,
                                 onSearch = { searchOpen = true },
                                 onSettings = { settingsOpen = true },

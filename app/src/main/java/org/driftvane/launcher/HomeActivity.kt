@@ -51,6 +51,8 @@ class HomeActivity : ComponentActivity(), HomeActions {
             navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
         )
         super.onCreate(savedInstanceState)
+        // see-through window, so the App Library can blur the wallpaper behind it
+        window.setFormat(android.graphics.PixelFormat.TRANSLUCENT)
         widgetManager = AppWidgetManager.getInstance(this)
         widgetHost = AppWidgetHost(applicationContext, HOST_ID)
         model = LauncherModel(applicationContext, lifecycleScope)
