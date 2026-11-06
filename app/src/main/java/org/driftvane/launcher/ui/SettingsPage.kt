@@ -37,6 +37,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Slider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -155,6 +157,24 @@ fun SettingsPage(model: LauncherModel, onClose: () -> Unit) {
                         }
                     }
                     SPage.HOME -> {
+                        item {
+                            Group(title = "Wallpaper blur") {
+                                ToggleRow("Blur the wallpaper on the home screen", model.homeBlur, model.accent) { model.changeHomeBlur(it) }
+                                if (model.homeBlur) {
+                                    Slider(
+                                        value = model.homeBlurAmount,
+                                        onValueChange = { model.changeHomeBlurAmount(it) },
+                                        valueRange = 0.1f..1f,
+                                        colors = SliderDefaults.colors(
+                                            thumbColor = model.accent,
+                                            activeTrackColor = model.accent,
+                                            inactiveTrackColor = Color(0x33FFFFFF),
+                                        ),
+                                        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
+                                    )
+                                }
+                            }
+                        }
                         item {
                             Group(title = "Page animation") {
                                 Seg(PageAnim.all, model.pageAnim, model.accent) { model.changePageAnim(it) }

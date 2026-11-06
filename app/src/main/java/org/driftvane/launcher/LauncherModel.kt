@@ -268,6 +268,16 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
     fun changeLibrary(v: String) { libraryStyle = v; prefs.edit().putString("library", v).apply() }
     fun changeSwipeDown(v: String) { swipeDown = v; prefs.edit().putString("swipe_down", v).apply() }
     fun changeGlass(v: Float) { glassStrength = v; prefs.edit().putFloat("glass", v).apply() }
+
+    /** Blur the wallpaper on the home screen so apps stand out (on by default). */
+    var homeBlur by mutableStateOf(prefs.getBoolean("home_blur", true))
+        private set
+    fun changeHomeBlur(v: Boolean) { homeBlur = v; prefs.edit().putBoolean("home_blur", v).apply() }
+
+    /** How strong the home screen wallpaper blur is (0.1..1, 0.5 = normal). */
+    var homeBlurAmount by mutableStateOf(prefs.getFloat("home_blur_amount", 0.5f))
+        private set
+    fun changeHomeBlurAmount(v: Float) { homeBlurAmount = v; prefs.edit().putFloat("home_blur_amount", v).apply() }
     fun changeShape(v: String) { iconShape = v; prefs.edit().putString("icon_shape", v).apply() }
     fun changeTheme(v: String) { iconTheme = v; prefs.edit().putString("icon_theme", v).apply(); reload() }
     fun changeDockStyle(v: String) { dockStyle = v; prefs.edit().putString("dock_style", v).apply() }

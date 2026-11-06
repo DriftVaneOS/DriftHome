@@ -329,15 +329,17 @@ fun HomeScreen(
     val pull = with(density) { 90.dp.toPx() }
     val onLibrary = pager.currentPage >= model.pages.size
 
-    // App Library background: blur the wallpaper behind the window as you swipe to the
-    // library (Android's window blur; skipped when the system has blur off, e.g. battery saver).
-    val maxBlurPx = with(density) { 36.dp.toPx() }
+    // Wallpaper blur (Android's window blur; skipped when the system has blur off, e.g. battery
+    // saver): the home screen blur from Home settings, rising to full blur on the App Library.
+    val libBlurPx = with(density) { 36.dp.toPx() }
+    val homeBlurMaxPx = with(density) { 48.dp.toPx() }
     LaunchedEffect(pager, drawerMode) {
         snapshotFlow {
-            if (drawerMode) 0 else {
-                val lib = (pager.currentPage + pager.currentPageOffsetFraction - (model.pages.size - 1)).coerceIn(0f, 1f)
-                ((lib * maxBlurPx) / 4f).toInt() * 4
-            }
+            val home = if (model.homeBlur) model.homeBlurAmount.coerceIn(0f, 1f) * homeBlurMaxPx else 0f
+            val lib = if (drawerMode) 0f
+                else (pager.currentPage + pager.currentPageOffsetFraction - (model.pages.size - 1)).coerceIn(0f, 1f)
+            val r = home + (maxOf(home, libBlurPx) - home) * lib
+            (r / 4f).toInt() * 4
         }.collect { r ->
             runCatching { (actions as? android.app.Activity)?.window?.setBackgroundBlurRadius(r) }
         }
