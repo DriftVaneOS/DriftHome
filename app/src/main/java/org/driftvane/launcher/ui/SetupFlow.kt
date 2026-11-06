@@ -50,7 +50,7 @@ private val Muted = Color(0xFF8EA3D6)
 private const val HELIBOARD_PKG = "helium314.keyboard"
 
 /**
- * First-boot setup: 1) pick your home screen, 2) pick your keyboard (if HeliBoard is installed)
+ * First-boot setup: 1) pick your home screen, 2) a shortcut to set up HeliBoard (or keyboard settings)
  * and a shortcut to DriftVane Enhancements.
  * Shown once (after the phone's setup), and again from Home settings > Run setup again.
  */
@@ -58,20 +58,13 @@ private const val HELIBOARD_PKG = "helium314.keyboard"
 fun SetupFlow(model: LauncherModel) {
     val context = LocalContext.current
     var step by remember { mutableIntStateOf(0) }
-    var homeStyle by remember { mutableStateOf("frame") }
-    var keyboard by remember { mutableStateOf("aosp") }
+    var homeStyle by remember { mutableStateOf(model.devFavStyle) }
     val heliboard = remember {
         runCatching { context.packageManager.getLaunchIntentForPackage(HELIBOARD_PKG) }.getOrNull()
     }
     BackHandler(enabled = step > 0) { step = 0 }
 
-    fun finish() {
-        model.finishSetup(homeStyle)
-        // HeliBoard opens its own short setup (turn it on, switch to it).
-        if (keyboard == "heliboard" && heliboard != null) {
-            runCatching { context.startActivity(Intent(heliboard).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-        }
-    }
+    fun finish() = model.finishSetup(homeStyle)
 
     Box(Modifier.fillMaxSize().background(Bg).swallowTaps()) {
         Column(
@@ -81,11 +74,11 @@ fun SetupFlow(model: LauncherModel) {
             Spacer(Modifier.height(4.dp))
             Text("Step ${step + 1} of 2", color = Muted, fontSize = 14.sp, fontWeight = FontWeight.W500)
             Spacer(Modifier.height(6.dp))
-            Text(if (step == 0) "Pick your home screen" else "Pick your keyboard", color = Color.White,
+            Text(if (step == 0) "Pick your home screen" else "Keyboard and extras", color = Color.White,
                 fontSize = 30.sp, fontWeight = FontWeight.W700)
             Text(
                 if (step == 0) "How your home screen is laid out. You can change it later in Home settings."
-                else "You can switch keyboards any time in Settings > System > Keyboard.",
+                else "The AOSP keyboard is on and ready. Want more? Set up another one below.",
                 color = Muted, fontSize = 15.sp, modifier = Modifier.padding(top = 6.dp),
             )
             Spacer(Modifier.height(22.dp))
@@ -94,7 +87,8 @@ fun SetupFlow(model: LauncherModel) {
                     model.homeStyles.chunked(2).forEach { row ->
                         Row(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             row.forEach { (id, name) ->
-                                Choice(name, homeStyle == id, Modifier.weight(1f), onClick = { homeStyle = id }) {
+                                Choice(name, homeStyle == id, Modifier.weight(1f), onClick = { homeStyle = id },
+                                    tag = if (id == model.devFavStyle) "Dev's Fav" else null) {
                                     HomePreview(id)
                                 }
                             }
@@ -103,17 +97,17 @@ fun SetupFlow(model: LauncherModel) {
                 }
             } else {
                 Column(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    KeyboardChoice(
-                        "AOSP keyboard",
-                        "Simple and reliable. Already on.",
-                        keyboard == "aosp",
-                    ) { keyboard = "aosp" }
-                    if (heliboard != null) {
-                        KeyboardChoice(
-                            "HeliBoard",
-                            "Themes, clipboard history, one-handed mode. Opens a quick setup after Done.",
-                            keyboard == "heliboard",
-                        ) { keyboard = "heliboard" }
+                    ActionCard(
+                        if (heliboard != null) "Set up HeliBoard" else "Keyboard settings",
+                        if (heliboard != null) "Themes, clipboard history, one-handed mode. Turn it on and switch to it."
+                        else "Pick and manage your keyboards.",
+                    ) {
+                        runCatching {
+                            context.startActivity(
+                                (heliboard?.let { Intent(it) } ?: Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            )
+                        }
                     }
                     Spacer(Modifier.weight(1f))
                     Row(
@@ -157,30 +151,31 @@ fun SetupFlow(model: LauncherModel) {
 }
 
 @Composable
-private fun KeyboardChoice(name: String, desc: String, selected: Boolean, onClick: () -> Unit) {
-    val ring by animateColorAsState(if (selected) Blue else Color.Transparent, label = "kbRing")
+private fun ActionCard(title: String, desc: String, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).border(3.dp, ring, RoundedCornerShape(20.dp))
-            .background(Tile).clickable(onClick = onClick).padding(18.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Tile)
+            .clickable(onClick = onClick).padding(18.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text(name, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.W700)
+            Text(title, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.W700)
             Spacer(Modifier.height(4.dp))
             Text(desc, color = Muted, fontSize = 14.sp)
         }
         Spacer(Modifier.width(12.dp))
-        Box(
-            Modifier.size(22.dp).clip(RoundedCornerShape(50)).border(2.dp, if (selected) Blue else Muted, RoundedCornerShape(50)),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (selected) Box(Modifier.size(12.dp).clip(RoundedCornerShape(50)).background(Blue))
-        }
+        Text("Open", color = Blue, fontSize = 15.sp, fontWeight = FontWeight.W700)
     }
 }
 
 @Composable
-private fun Choice(name: String, selected: Boolean, modifier: Modifier, onClick: () -> Unit, preview: @Composable () -> Unit) {
+private fun Choice(
+    name: String,
+    selected: Boolean,
+    modifier: Modifier,
+    onClick: () -> Unit,
+    tag: String? = null,
+    preview: @Composable () -> Unit,
+) {
     val ring by animateColorAsState(if (selected) Blue else Color.Transparent, label = "ring")
     Column(modifier.fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
@@ -195,6 +190,11 @@ private fun Choice(name: String, selected: Boolean, modifier: Modifier, onClick:
         Spacer(Modifier.height(8.dp))
         Text(name, color = if (selected) Color.White else Muted, fontSize = 14.sp, fontWeight = FontWeight.W600,
             textAlign = TextAlign.Center)
+        if (tag != null) {
+            Text(tag, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.W700,
+                modifier = Modifier.padding(top = 3.dp).clip(RoundedCornerShape(50)).background(Blue)
+                    .padding(horizontal = 8.dp, vertical = 2.dp))
+        }
     }
 }
 

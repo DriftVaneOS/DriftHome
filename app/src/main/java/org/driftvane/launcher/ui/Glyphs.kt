@@ -15,7 +15,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
-enum class G { EDIT, INFO, TRASH, DOCK, HOME, HIDE, REMOVE, SHORTCUT, WIDGET, GEAR, WALLPAPER, CHEVRON, BACK, SHAPE, PALETTE, GRID, HAND, LIBRARY, LOCK, SPARK }
+enum class G { EDIT, INFO, TRASH, DOCK, HOME, HIDE, REMOVE, SHORTCUT, WIDGET, GEAR, WALLPAPER, CHEVRON, BACK, SHAPE, PALETTE, GRID, HAND, LIBRARY, LOCK, SPARK, SEARCH, MORE }
 
 /** Small line icons drawn in code, so menus look crisp at any size. */
 @Composable
@@ -112,6 +112,13 @@ fun Glyph(kind: G, color: Color, size: Dp = 20.dp, modifier: Modifier = Modifier
                 drawRoundRect(color, Offset(0.16f * w, 0.16f * w), Size(0.3f * w, 0.68f * w), CornerRadius(0.08f * w), style = st)
                 drawRoundRect(color, Offset(0.54f * w, 0.16f * w), Size(0.3f * w, 0.3f * w), CornerRadius(0.08f * w), style = st)
                 drawRoundRect(color, Offset(0.54f * w, 0.54f * w), Size(0.3f * w, 0.3f * w), CornerRadius(0.08f * w), style = st)
+            }
+            G.SEARCH -> {
+                drawCircle(color, w * 0.24f, Offset(0.44f * w, 0.44f * w), style = st)
+                drawLine(color, Offset(0.62f * w, 0.62f * w), Offset(0.82f * w, 0.82f * w), sw, StrokeCap.Round)
+            }
+            G.MORE -> {
+                listOf(0.24f, 0.5f, 0.76f).forEach { y -> drawCircle(color, sw * 0.9f, Offset(w / 2, y * w)) }
             }
             G.LOCK -> {
                 drawRoundRect(color, Offset(0.22f * w, 0.44f * w), Size(0.56f * w, 0.4f * w), CornerRadius(0.08f * w), style = st)

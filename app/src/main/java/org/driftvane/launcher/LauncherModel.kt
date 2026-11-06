@@ -77,7 +77,17 @@ val Accents = listOf(
     Color(0xFF4D8DFF), Color(0xFFFF4D5E), Color(0xFF8CD0F0), Color(0xFFF09CE2), Color(0xFFFFB59C), Color(0xFFFF8A3D),
 )
 
+object PageAnim {
+    const val SLIDE = "slide"
+    const val FADE = "fade"
+    const val ZOOM = "zoom"
+    const val CUBE = "cube"
+    val all = listOf(SLIDE to "Slide", FADE to "Fade", ZOOM to "Zoom", CUBE to "Cube")
+}
+
 object LibraryStyle {
+    /** Category folders with All / Categories tabs and search at the bottom (the default). */
+    const val FOLDERS = "folders"
     const val SMART = "smart"
     const val CARDS = "cards"
     const val LIST = "list"
@@ -203,22 +213,32 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         private set
 
     /** Home styles offered in setup (id to name). */
-    val homeStyles = listOf("frame" to "Frame", "split" to "Split", "stack" to "Stack", "columns" to "Columns")
+    val homeStyles = listOf("stack" to "Stack", "frame" to "Frame", "split" to "Split", "columns" to "Columns")
+
+    /** The style Alex recommends (shown first in setup with a "Dev's Fav" tag). */
+    val devFavStyle = "stack"
+
+    /** Page swipe animation on the home screen ("slide" is the original). */
+    var pageAnim by mutableStateOf(prefs.getString("page_anim", PageAnim.SLIDE)!!)
+        private set
+    fun changePageAnim(v: String) { pageAnim = v; prefs.edit().putString("page_anim", v).apply() }
 
     /** Apply a home style and the look that goes with it (users can still tweak it after). */
     fun applyHomeStyle(style: String) {
         prefs.edit().putString("top_style", style).putBoolean("glance", true)
             .putString("icon_shape", "rounded").putString("icon_theme", IconTheme.ORIGINAL)
             .putString("dock_style", "clear").putBoolean("labels", false).putBoolean("grid_panel", false)
-            .putBoolean("search_pill", false).putInt("columns", 4).putFloat("icon_scale", 1.1f).apply()
+            .putBoolean("search_pill", true).putInt("columns", 4).putFloat("icon_scale", 1.26f)
+            .putString("library", LibraryStyle.FOLDERS).apply()
         topStyle = style
         showGlance = true
         iconShape = "rounded"
         dockStyle = "clear"
         showLabels = false
         gridPanel = false
-        searchPill = false
-        iconScale = 1.1f
+        searchPill = true
+        iconScale = 1.26f
+        libraryStyle = LibraryStyle.FOLDERS
         columns = 4
         iconTheme = IconTheme.ORIGINAL
         reload()
@@ -501,7 +521,9 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
     private fun defaultDock(): List<String> = listOfNotNull(
         resolveDefault(Intent(Intent.ACTION_DIAL)),
         resolveDefault(Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:"))),
-        resolveDefault(Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com"))),
+        // DriftVaneOS: AlexLMP instead of the browser (the browser if AlexLMP isn't installed)
+        apps.values.firstOrNull { it.label.contains("alexlmp", ignoreCase = true) }?.key
+            ?: resolveDefault(Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com"))),
         resolveDefault(Intent(MediaStore.ACTION_IMAGE_CAPTURE)),
     ).distinct()
 

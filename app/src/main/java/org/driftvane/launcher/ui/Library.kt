@@ -106,6 +106,10 @@ fun AppLibrary(
     onSettings: () -> Unit,
     onOpenCategory: (String) -> Unit,
 ) {
+    if (model.libraryStyle == LibraryStyle.FOLDERS) {
+        FolderLibrary(model, handler, onSearch, onSettings, onOpenCategory)
+        return
+    }
     val groups = remember(model.apps.size, model.apps.keys.hashCode(), model.hiddenApps.size, model.iconTheme, model.accentIndex) { model.categories() }
     val accent = model.accent
     LazyColumn(

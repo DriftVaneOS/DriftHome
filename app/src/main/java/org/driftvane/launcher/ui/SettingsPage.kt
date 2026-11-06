@@ -56,6 +56,7 @@ import org.driftvane.launcher.Accents
 import org.driftvane.launcher.IconTheme
 import org.driftvane.launcher.LauncherModel
 import org.driftvane.launcher.LibraryStyle
+import org.driftvane.launcher.PageAnim
 import org.driftvane.launcher.SwipeDown
 
 private enum class SPage(val title: String) {
@@ -155,9 +156,14 @@ fun SettingsPage(model: LauncherModel, onClose: () -> Unit) {
                     }
                     SPage.HOME -> {
                         item {
+                            Group(title = "Page animation") {
+                                Seg(PageAnim.all, model.pageAnim, model.accent) { model.changePageAnim(it) }
+                            }
+                        }
+                        item {
                             Group(title = "Home style") {
                                 model.homeStyles.forEachIndexed { i, (id, n) ->
-                                    CheckRow(n, styleHint(id), model.topStyle == id, model.accent) { model.applyHomeStyle(id) }
+                                    CheckRow(if (id == model.devFavStyle) "$n · Dev's Fav" else n, styleHint(id), model.topStyle == id, model.accent) { model.applyHomeStyle(id) }
                                 }
                                 ActionRow("Run setup again", model.accent) { model.restartSetup(); onClose() }
                             }
@@ -204,12 +210,13 @@ fun SettingsPage(model: LauncherModel, onClose: () -> Unit) {
                         item {
                             Group(title = "Style") {
                                 listOf(
+                                    Triple(LibraryStyle.FOLDERS, "Folders", "All / Categories tabs, folders, search at the bottom"),
                                     Triple(LibraryStyle.SMART, "Smart categories", "Suggestions, recently added, auto-sorted groups"),
                                     Triple(LibraryStyle.CARDS, "Category cards", "2×2 cards for each category"),
                                     Triple(LibraryStyle.LIST, "A–Z list", "Every app in one list"),
                                     Triple(LibraryStyle.DRAWER, "Swipe-up drawer", "No library page; swipe up anywhere"),
                                 ).forEachIndexed { i, (id, n, h) ->
-                                    CheckRow(n, h, model.libraryStyle == id, model.accent, last = i == 3) { model.changeLibrary(id) }
+                                    CheckRow(n, h, model.libraryStyle == id, model.accent, last = i == 4) { model.changeLibrary(id) }
                                 }
                             }
                         }
@@ -351,7 +358,7 @@ private fun styleHint(id: String) = when (id) {
 
 private fun dockName(id: String) = when (id) { "clear" -> "Clear"; "solid" -> "Solid"; "line" -> "Line"; "tonal" -> "Tonal"; else -> "Tinted card" }
 private fun libraryName(id: String) = when (id) {
-    LibraryStyle.CARDS -> "Category cards"; LibraryStyle.LIST -> "A–Z list"; LibraryStyle.DRAWER -> "Swipe-up drawer"; else -> "Smart categories"
+    LibraryStyle.FOLDERS -> "Folders"; LibraryStyle.CARDS -> "Category cards"; LibraryStyle.LIST -> "A–Z list"; LibraryStyle.DRAWER -> "Swipe-up drawer"; else -> "Smart categories"
 }
 private fun themeHint(id: String) = when (id) {
     IconTheme.THEMED -> "Icons tinted with your accent color"

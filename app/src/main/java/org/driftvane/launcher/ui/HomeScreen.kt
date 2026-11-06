@@ -83,6 +83,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import org.driftvane.launcher.LauncherModel
+import androidx.compose.ui.graphics.TransformOrigin
+import org.driftvane.launcher.PageAnim
 import org.driftvane.launcher.LibraryStyle
 import org.driftvane.launcher.Source
 import org.driftvane.launcher.SwipeDown
@@ -364,6 +366,21 @@ fun HomeScreen(
                         val pageTopLeft = remember { arrayOf(Offset.Zero) }
                         Box(
                             Modifier.fillMaxSize().onGloballyPositioned { pageTopLeft[0] = it.positionInRoot() }
+                                .graphicsLayer {
+                                    // page swipe animation picked in Home settings ("Slide" = none)
+                                    val off = (pager.currentPage - page) + pager.currentPageOffsetFraction
+                                    val a = kotlin.math.abs(off).coerceIn(0f, 1f)
+                                    when (model.pageAnim) {
+                                        PageAnim.FADE -> { translationX = off * size.width; alpha = 1f - a }
+                                        PageAnim.ZOOM -> { scaleX = 1f - 0.18f * a; scaleY = 1f - 0.18f * a; alpha = 1f - 0.6f * a }
+                                        PageAnim.CUBE -> {
+                                            cameraDistance = 12f * density
+                                            transformOrigin = TransformOrigin(if (off > 0f) 1f else 0f, 0.5f)
+                                            rotationY = -90f * off.coerceIn(-1f, 1f)
+                                        }
+                                        else -> {}
+                                    }
+                                }
                                 .then(frameBackground(model, if (page == 0) pageTopLeft else null))
                         ) {
                             // empty space: long-press for the home menu, tap to leave edit mode

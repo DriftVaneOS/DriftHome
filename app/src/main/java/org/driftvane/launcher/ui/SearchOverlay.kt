@@ -7,6 +7,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -70,63 +75,90 @@ fun SearchOverlay(model: LauncherModel, onLaunch: (String, Rect) -> Unit, onClos
         onClose()
     }
 
+    val suggested = remember(model.apps.size, model.hiddenApps.size) {
+        model.suggestions(4).ifEmpty { model.visibleApps().sortedBy { it.label.lowercase() }.take(4) }
+    }
+    val card = Color(0xFF1B1F27)
+    val hint = Color(0xFFB8BEC9)
+
     Box(
         Modifier.fillMaxSize()
-            .background(Color(0x66000000))
+            .background(Color(0xF20B0E14))
             .clickable(remember { MutableInteractionSource() }, indication = null) { onClose() }
     ) {
         Column(
-            Modifier.fillMaxSize().statusBarsPadding().imePadding().padding(horizontal = 18.dp),
+            Modifier.fillMaxSize().statusBarsPadding().imePadding().padding(horizontal = 16.dp),
         ) {
-            Spacer(Modifier.height(18.dp))
-            Box(Modifier.fillMaxWidth().glass(22.dp).padding(horizontal = 18.dp, vertical = 16.dp)) {
-                if (query.isEmpty()) {
-                    Text("Search apps and the web", color = Color(0xFFA6ADB2), fontSize = 17.sp, fontWeight = FontWeight.W700)
+            Spacer(Modifier.height(12.dp))
+            // search field + Cancel
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    Modifier.weight(1f).height(46.dp).clip(RoundedCornerShape(14.dp)).background(card)
+                        .clickable(remember { MutableInteractionSource() }, indication = null) {}
+                        .padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Glyph(G.SEARCH, hint, 19.dp)
+                    Spacer(Modifier.width(8.dp))
+                    Box(Modifier.weight(1f)) {
+                        if (query.isEmpty()) {
+                            Text("Search", color = hint, fontSize = 17.sp)
+                        }
+                        BasicTextField(
+                            value = query,
+                            onValueChange = { query = it },
+                            singleLine = true,
+                            textStyle = TextStyle(color = Color.White, fontSize = 17.sp),
+                            cursorBrush = SolidColor(model.accent),
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                            keyboardActions = KeyboardActions(onSearch = {
+                                val first = results.firstOrNull()
+                                if (first != null && query.isNotBlank()) {
+                                    onLaunch(first.key, Rect.Zero); onClose()
+                                } else webSearch()
+                            }),
+                            modifier = Modifier.fillMaxWidth().focusRequester(focus),
+                        )
+                    }
                 }
-                BasicTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    singleLine = true,
-                    textStyle = TextStyle(color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.W700),
-                    cursorBrush = SolidColor(model.accent),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = {
-                        val first = results.firstOrNull()
-                        if (first != null && query.isNotBlank()) {
-                            onLaunch(first.key, Rect.Zero); onClose()
-                        } else webSearch()
-                    }),
-                    modifier = Modifier.fillMaxWidth().focusRequester(focus),
-                )
+                Text("Cancel", color = model.accent, fontSize = 17.sp, fontWeight = FontWeight.W500,
+                    modifier = Modifier.clickable { onClose() }.padding(start = 14.dp, top = 8.dp, bottom = 8.dp))
             }
-            Spacer(Modifier.height(16.dp))
-            Column(
-                Modifier.fillMaxWidth().glass(28.dp).padding(14.dp)
-                    .clickable(remember { MutableInteractionSource() }, indication = null) {},
-            ) {
-                Text(
-                    if (query.isBlank()) "SUGGESTED" else "APPS",
-                    color = model.accent, fontSize = 12.sp, fontWeight = FontWeight.W600, letterSpacing = 2.sp,
-                    modifier = Modifier.padding(start = 6.dp, bottom = 10.dp),
-                )
+            Spacer(Modifier.height(18.dp))
+
+            val shown = if (query.isBlank()) suggested else results
+            Text(if (query.isBlank()) "Suggestions" else "Apps", color = Color.White,
+                fontSize = 20.sp, fontWeight = FontWeight.W700, modifier = Modifier.padding(start = 4.dp, bottom = 10.dp))
+            if (shown.isEmpty()) {
+                Text("No apps found", color = hint, fontSize = 15.sp, modifier = Modifier.padding(start = 4.dp, bottom = 10.dp))
+            } else {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(4),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.fillMaxWidth().height(if (results.size > 4) 220.dp else 110.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 340.dp)
+                        .clip(RoundedCornerShape(20.dp)).background(card)
+                        .clickable(remember { MutableInteractionSource() }, indication = null) {}
+                        .padding(vertical = 14.dp),
                 ) {
-                    items(results, key = { it.key }) { app ->
+                    items(shown, key = { it.key }) { app ->
                         Box(contentAlignment = Alignment.Center) {
-                            TapIcon(app, 54f, true) { r -> onLaunch(app.key, r); onClose() }
+                            TapIcon(app, 56f, true) { r -> onLaunch(app.key, r); onClose() }
                         }
                     }
                 }
-                if (query.isNotBlank()) {
-                    Spacer(Modifier.height(10.dp))
-                    Box(
-                        Modifier.fillMaxWidth().background(model.accent.copy(alpha = 0.18f), androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
-                            .clickable { webSearch() }.padding(14.dp)
-                    ) {
-                        Text("Search the web for “$query”", color = Color.White, fontWeight = FontWeight.W600, fontSize = 15.sp)
+            }
+            if (query.isNotBlank()) {
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(card)
+                        .clickable { webSearch() }.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Glyph(G.SEARCH, model.accent, 20.dp)
+                    Spacer(Modifier.width(12.dp))
+                    Column {
+                        Text("Search the web", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.W600)
+                        Text("“$query”", color = hint, fontSize = 14.sp)
                     }
                 }
             }
