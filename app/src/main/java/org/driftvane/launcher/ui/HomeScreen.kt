@@ -37,6 +37,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.statusBars
@@ -419,8 +420,10 @@ fun HomeScreen(
                         enter = fadeIn() + scaleIn(initialScale = 0.85f),
                         exit = fadeOut() + scaleOut(targetScale = 0.85f),
                     ) {
+                        // requiredHeight: the strip above the dock is only 16dp tall (page dots), so
+                        // without this the "+ Widget" and "Done" buttons got squashed flat.
                         Row(
-                            Modifier.fillMaxWidth().padding(horizontal = 18.dp),
+                            Modifier.fillMaxWidth().requiredHeight(48.dp).padding(horizontal = 18.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
