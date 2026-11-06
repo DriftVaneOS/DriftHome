@@ -269,8 +269,8 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
     fun changeSwipeDown(v: String) { swipeDown = v; prefs.edit().putString("swipe_down", v).apply() }
     fun changeGlass(v: Float) { glassStrength = v; prefs.edit().putFloat("glass", v).apply() }
 
-    /** Blur the wallpaper on the home screen so apps stand out (on by default). */
-    var homeBlur by mutableStateOf(prefs.getBoolean("home_blur", true))
+    /** Blur the wallpaper on the home screen so apps stand out (off by default). */
+    var homeBlur by mutableStateOf(prefs.getBoolean("home_blur", false))
         private set
     fun changeHomeBlur(v: Boolean) { homeBlur = v; prefs.edit().putBoolean("home_blur", v).apply() }
 
