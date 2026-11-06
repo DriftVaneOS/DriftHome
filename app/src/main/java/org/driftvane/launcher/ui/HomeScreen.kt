@@ -374,7 +374,7 @@ fun HomeScreen(
                                         PageAnim.FADE -> { translationX = off * size.width; alpha = 1f - a }
                                         PageAnim.ZOOM -> { scaleX = 1f - 0.18f * a; scaleY = 1f - 0.18f * a; alpha = 1f - 0.6f * a }
                                         PageAnim.CUBE -> {
-                                            cameraDistance = 12f * density
+                                            cameraDistance = 12f * this.density
                                             transformOrigin = TransformOrigin(if (off > 0f) 1f else 0f, 0.5f)
                                             rotationY = -90f * off.coerceIn(-1f, 1f)
                                         }
