@@ -9,6 +9,9 @@ import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -120,24 +123,32 @@ private fun ClockCard(model: LauncherModel, live: Live, modifier: Modifier, big:
 private fun MusicCard(model: LauncherModel, live: Live, modifier: Modifier, solid: Boolean = false) {
     val context = LocalContext.current
     val np = live.playing
-    Column(
+    val art = np?.art
+    val artImage = remember(art) { art?.asImageBitmap() }
+    Box(
         modifier.clip(RoundedCornerShape(26.dp)).background(if (solid) model.accent else Card)
             .clickable(remember { MutableInteractionSource() }, indication = null) {
                 if (np != null) openPlayer(context, np) else if (!hasMediaAccess(context)) openMediaAccessSettings(context)
             }
-            .padding(16.dp),
-        verticalArrangement = Arrangement.SpaceBetween,
     ) {
-        Text(if (np != null) "Now playing" else "Music", color = if (solid) Color.White.copy(alpha = 0.8f) else Soft,
-            fontSize = 13.sp, fontWeight = FontWeight.W500)
-        Column {
-            Text(
-                when { np != null -> np.title; !live.access -> "Tap to show what's playing"; else -> "Nothing playing" },
-                color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.W600, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            )
-            if (np != null && np.artist.isNotBlank()) {
-                Text(np.artist, color = if (solid) Color.White.copy(alpha = 0.8f) else Soft, fontSize = 13.sp,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+        // album art behind the text, faded, with a dark wash so the song name stays bright
+        if (artImage != null) {
+            Image(artImage, null, Modifier.matchParentSize(), contentScale = ContentScale.Crop, alpha = 0.45f)
+            Box(Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.28f)))
+        }
+        Column(Modifier.matchParentSize().padding(16.dp), verticalArrangement = Arrangement.SpaceBetween) {
+            Text(if (np != null) "Now playing" else "Music",
+                color = if (solid || artImage != null) Color.White.copy(alpha = 0.85f) else Soft,
+                fontSize = 13.sp, fontWeight = FontWeight.W500)
+            Column {
+                Text(
+                    when { np != null -> np.title; !live.access -> "Tap to show what's playing"; else -> "Nothing playing" },
+                    color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.W700, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+                if (np != null && np.artist.isNotBlank()) {
+                    Text(np.artist, color = if (solid || artImage != null) Color.White.copy(alpha = 0.85f) else Soft,
+                        fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
             }
         }
     }

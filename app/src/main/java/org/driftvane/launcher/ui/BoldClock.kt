@@ -39,7 +39,13 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
-data class NowPlaying(val title: String, val artist: String, val controller: MediaController)
+data class NowPlaying(
+    val title: String,
+    val artist: String,
+    val controller: MediaController,
+    /** Album art, if the player shares it. */
+    val art: android.graphics.Bitmap? = null,
+)
 
 /** What's playing right now, or null (nothing playing, or no notification access yet). */
 fun nowPlaying(context: Context): NowPlaying? = runCatching {
@@ -50,7 +56,10 @@ fun nowPlaying(context: Context): NowPlaying? = runCatching {
     val title = md.getString(MediaMetadata.METADATA_KEY_TITLE)?.takeIf { it.isNotBlank() } ?: return null
     val artist = md.getString(MediaMetadata.METADATA_KEY_ARTIST)
         ?: md.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST) ?: ""
-    NowPlaying(title, artist, c)
+    val art = md.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
+        ?: md.getBitmap(MediaMetadata.METADATA_KEY_ART)
+        ?: md.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
+    NowPlaying(title, artist, c, art)
 }.getOrNull()
 
 /** Whether DriftHome may read media sessions (notification access is on). */
